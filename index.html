@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>重力式擁壁 安定計算</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Noto Sans JP', 'Meiryo', sans-serif; background: #eef2f7; color: #333; font-size: 14px; }
+
+    header { background: #1a3a5c; color: white; padding: 14px 24px; display: flex; align-items: baseline; gap: 16px; }
+    header h1 { font-size: 18px; font-weight: bold; }
+    header p { font-size: 12px; color: #9ab; }
+
+    .container { max-width: 1280px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: 360px 1fr; gap: 16px; }
+
+    .card { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.12); margin-bottom: 12px; }
+    .card:last-child { margin-bottom: 0; }
+    .card h2 { font-size: 13px; font-weight: bold; color: #1a3a5c; border-bottom: 2px solid #1a3a5c; padding-bottom: 5px; margin-bottom: 12px; letter-spacing: 0.5px; }
+
+    .sec-label { font-size: 11px; font-weight: bold; color: #7a8fa8; text-transform: uppercase; letter-spacing: 0.8px; margin: 12px 0 6px; }
+    .sec-label:first-of-type { margin-top: 0; }
+
+    .fg { display: flex; align-items: center; margin-bottom: 7px; gap: 6px; }
+    .fg label { width: 148px; font-size: 12px; flex-shrink: 0; color: #444; }
+    .fg input { width: 76px; padding: 4px 7px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; text-align: right; transition: border-color 0.2s; }
+    .fg input:focus { outline: none; border-color: #1a3a5c; }
+    .fg .unit { width: 44px; font-size: 11px; color: #888; }
+    .fg .note { font-size: 11px; color: #aaa; }
+
+    .btn { width: 100%; padding: 11px; background: #1a3a5c; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; margin-top: 14px; letter-spacing: 1px; transition: background 0.2s; }
+    .btn:hover { background: #2a5080; }
+
+    /* ---- Results ---- */
+    .result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+
+    .stab-card { border-radius: 7px; padding: 12px 14px; border-left: 5px solid #ccc; background: #fafafa; }
+    .stab-card.pass { border-left-color: #2ecc71; background: #f0fff4; }
+    .stab-card.fail { border-left-color: #e74c3c; background: #fff5f5; }
+    .stab-card .stab-title { font-size: 12px; font-weight: bold; color: #555; margin-bottom: 6px; }
+    .stab-card .stab-fs { font-size: 26px; font-weight: bold; line-height: 1; }
+    .stab-card.pass .stab-fs { color: #27ae60; }
+    .stab-card.fail .stab-fs { color: #c0392b; }
+    .stab-card .stab-req { font-size: 11px; color: #888; margin-top: 2px; }
+    .stab-card .stab-detail { font-size: 11px; color: #666; margin-top: 7px; line-height: 1.6; }
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: bold; margin-top: 7px; }
+    .badge.pass { background: #d4edda; color: #155724; }
+    .badge.fail { background: #f8d7da; color: #721c24; }
+
+    table.rt { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.rt th { background: #f0f4f8; padding: 5px 8px; text-align: left; border: 1px solid #e0e5ea; color: #555; font-weight: normal; }
+    table.rt td { padding: 5px 8px; border: 1px solid #e0e5ea; }
+    table.rt td.r { text-align: right; font-family: 'Courier New', monospace; }
+    table.rt tr.hl { background: #fffbea; }
+    table.rt tr.hl2 { background: #ebf5fb; }
+
+    #diagram-wrap { background: #f4f7fb; border-radius: 6px; padding: 8px; }
+    #no-result { color: #aaa; text-align: center; padding: 40px 0; font-size: 13px; }
+    .hidden { display: none; }
+
+    .formula-note { background: #f0f4f8; border-radius: 5px; padding: 9px 12px; font-size: 11px; color: #666; line-height: 1.7; margin-top: 10px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>重力式擁壁　安定計算</h1>
+  <p>道路土工－擁壁工指針 準拠 ／ クーロン土圧式</p>
+</header>
+
+<div class="container">
+  <!-- ===== LEFT: INPUTS ===== -->
+  <div>
+    <div class="card">
+      <h2>入力条件</h2>
+
+      <div class="sec-label">壁体形状</div>
+      <div class="fg"><label>壁高 H</label><input id="H" type="number" value="5.0" min="0.5" step="0.1"><span class="unit">m</span></div>
+      <div class="fg"><label>底面幅 B</label><input id="B" type="number" value="3.5" min="0.5" step="0.1"><span class="unit">m</span></div>
+      <div class="fg"><label>天端幅 a</label><input id="a_top" type="number" value="0.6" min="0.2" step="0.1"><span class="unit">m</span></div>
+      <div class="fg"><label>前面勾配 n₁</label><input id="n1" type="number" value="0.02" min="0" step="0.01"><span class="unit">-</span><span class="note">（水平/鉛直）</span></div>
+
+      <div class="sec-label">材料定数</div>
+      <div class="fg"><label>コンクリート単位重量 γc</label><input id="gamma_c" type="number" value="23.0" step="0.5"><span class="unit">kN/m³</span></div>
+
+      <div class="sec-label">裏込め土</div>
+      <div class="fg"><label>単位重量 γs</label><input id="gamma_s" type="number" value="18.0" step="0.5"><span class="unit">kN/m³</span></div>
+      <div class="fg"><label>内部摩擦角 φ</label><input id="phi" type="number" value="30" min="10" max="45" step="1"><span class="unit">度</span></div>
+      <div class="fg"><label>壁摩擦角 δ</label><input id="delta" type="number" value="15" min="0" max="30" step="1"><span class="unit">度</span><span class="note">（推奨：φ/2）</span></div>
+      <div class="fg"><label>背面盛土傾斜角 β</label><input id="beta" type="number" value="0" min="0" max="30" step="1"><span class="unit">度</span><span class="note">（水平=0）</span></div>
+
+      <div class="sec-label">荷重</div>
+      <div class="fg"><label>等分布載荷重 q</label><input id="q" type="number" value="10" min="0" step="1"><span class="unit">kN/m²</span></div>
+
+      <div class="sec-label">地盤条件</div>
+      <div class="fg"><label>底面摩擦係数 μ</label><input id="mu" type="number" value="0.5" min="0.1" max="1.0" step="0.05"><span class="unit">-</span></div>
+      <div class="fg"><label>許容支持力 qa</label><input id="qa" type="number" value="300" min="50" step="10"><span class="unit">kN/m²</span></div>
+
+      <button class="btn" onclick="calculate()">計　算　実　行</button>
+    </div>
+  </div>
+
+  <!-- ===== RIGHT: RESULTS ===== -->
+  <div>
+    <div class="card">
+      <h2>断面図・作用力</h2>
+      <div id="diagram-wrap">
+        <svg id="diagram" width="100%" height="280" viewBox="0 0 620 280" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+    </div>
+
+    <div id="no-result" class="card">計算実行ボタンを押すと結果が表示されます</div>
+
+    <div id="results" class="hidden">
+
+      <div class="card">
+        <h2>安定照査結果</h2>
+        <div class="result-grid" id="stab-cards"></div>
+        <div id="ground-table"></div>
+      </div>
+
+      <div class="card">
+        <h2>作用力・モーメント集計（壁趾まわり）</h2>
+        <div id="forces-table"></div>
+      </div>
+
+      <div class="card">
+        <h2>土圧計算（クーロン式）</h2>
+        <div id="ep-table"></div>
+        <div class="formula-note">
+          Ka = sin²(φ+α) / [sin²α · sin(α−δ) · {1 + √(sin(φ+δ)·sin(φ−β) / (sin(α−δ)·sin(α+β)))}²]<br>
+          Pa = ½·Ka·γs·H²（自重分） + Ka·q·H（載荷重分）<br>
+          Pah = Pa·cos(δ+ψ)，Pav = Pa·sin(δ+ψ)（下向き）　ψ = arctan(n₂)
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const RAD = Math.PI / 180;
+const f = (v, d = 3) => (+v).toFixed(d);
+
+function calculate() {
+  // --- inputs ---
+  const H       = +document.getElementById('H').value;
+  const B       = +document.getElementById('B').value;
+  const a       = +document.getElementById('a_top').value;
+  const n1      = +document.getElementById('n1').value;
+  const gc      = +document.getElementById('gamma_c').value;
+  const gs      = +document.getElementById('gamma_s').value;
+  const phi     = +document.getElementById('phi').value * RAD;
+  const delta   = +document.getElementById('delta').value * RAD;
+  const beta    = +document.getElementById('beta').value * RAD;
+  const q       = +document.getElementById('q').value;
+  const mu      = +document.getElementById('mu').value;
+  const qa      = +document.getElementById('qa').value;
+
+  // --- derived geometry ---
+  const n2 = (B - a) / H - n1;   // back face slope (horiz/vert)
+  if (n2 < -1e-9) {
+    alert('形状エラー: (B−a)/H < n₁ になっています。底面幅 B を大きくするか天端幅 a を小さくしてください。');
+    return;
+  }
+  const psi   = Math.atan(Math.max(n2, 0));   // back face angle from vertical
+  const alpha = Math.PI / 2 - psi;            // back face angle from horizontal (Coulomb α)
+
+  // --- Coulomb Ka ---
+  const A = Math.sin(phi + alpha);
+  const C = Math.sin(alpha - delta);
+  const D = Math.sin(alpha + beta);
+  const inner = Math.sin(phi + delta) * Math.sin(phi - beta) / (C * D);
+  if (inner < 0) { alert('土圧パラメータが不正です（φ < β になっていませんか？）'); return; }
+  const Ka = (A * A) / (Math.sin(alpha) * Math.sin(alpha) * C * Math.pow(1 + Math.sqrt(inner), 2));
+
+  // --- Earth pressure ---
+  const Pa_w = 0.5 * Ka * gs * H * H;   // triangular (weight)
+  const Pa_q = Ka * q * H;               // uniform (surcharge)
+  const Pa   = Pa_w + Pa_q;
+
+  const ang  = delta + psi;              // Pa direction below horizontal
+  const Pah  = Pa * Math.cos(ang);
+  const Pav  = Pa * Math.sin(ang);       // downward
+
+  // Height of resultant from base
+  const y_Pa = (Pa_w * H / 3 + Pa_q * H / 2) / Pa;
+  // Horizontal position (on back face at height y_Pa)
+  const x_Pa = B - n2 * y_Pa;           // x from toe
+
+  // --- Wall self-weight & centroid (decompose trapezoid) ---
+  // Rectangle (stem): x=[n1·H, n1·H+a], h=H
+  const A_r  = a * H;
+  const xc_r = n1 * H + a / 2;
+  // Front triangle: (0,0),(n1·H,0),(n1·H,H)
+  const A_f  = 0.5 * n1 * H * H;
+  const xc_f = n1 > 1e-9 ? 2 * n1 * H / 3 : 0;
+  // Back triangle: (n1·H+a,0),(B,0),(n1·H+a,H)
+  const A_b  = 0.5 * n2 * H * H;
+  const xc_b = n2 > 1e-9 ? (2 * (n1 * H + a) + B) / 3 : (n1 * H + a);
+
+  const A_wall  = A_r + A_f + A_b;      // = (a+B)/2·H
+  const xc_wall = (A_r * xc_r + A_f * xc_f + A_b * xc_b) / A_wall;
+  const W        = gc * A_wall;
+
+  // --- Moments about toe (counterclockwise = resisting) ---
+  const Mr_W   = W * xc_wall;
+  const Mr_Pav = Pav * x_Pa;
+  const Mo_Pah = Pah * y_Pa;
+
+  const sumMr  = Mr_W + Mr_Pav;
+  const sumMo  = Mo_Pah;
+  const sumV   = W + Pav;
+
+  // --- Overturning ---
+  const Fs_OT  = sumMr / sumMo;
+  const ok_OT  = Fs_OT >= 1.5;
+
+  // --- Sliding ---
+  const Fs_SL  = mu * sumV / Pah;
+  const ok_SL  = Fs_SL >= 1.5;
+
+  // --- Bearing capacity ---
+  const x_R    = (sumMr - sumMo) / sumV;  // resultant from toe
+  const e      = B / 2 - x_R;             // eccentricity
+  const e_max  = B / 6;
+  const q_max  = (sumV / B) * (1 + 6 * e / B);
+  const q_min  = (sumV / B) * (1 - 6 * e / B);
+  const ok_e   = Math.abs(e) <= e_max;
+  const ok_q   = q_max <= qa;
+  const ok_BC  = ok_e && ok_q;
+
+  // ===== RENDER =====
+  drawDiagram(H, B, a, n1, n2, Pa, Pah, Pav, y_Pa, x_Pa, W, xc_wall, q, mu, sumV);
+
+  document.getElementById('no-result').classList.add('hidden');
+  document.getElementById('results').classList.remove('hidden');
+
+  // --- Stability cards ---
+  document.getElementById('stab-cards').innerHTML = `
+    <div class="stab-card ${ok_OT ? 'pass' : 'fail'}">
+      <div class="stab-title">① 転倒安定</div>
+      <div class="stab-fs">${f(Fs_OT, 2)}</div>
+      <div class="stab-req">必要安全率 ≥ 1.50</div>
+      <div class="stab-detail">
+        ΣMr = ${f(sumMr)} kN·m/m<br>
+        ΣMo = ${f(sumMo)} kN·m/m
+      </div>
+      <span class="badge ${ok_OT ? 'pass' : 'fail'}">${ok_OT ? 'OK' : 'NG'}</span>
+    </div>
+    <div class="stab-card ${ok_SL ? 'pass' : 'fail'}">
+      <div class="stab-title">② 滑動安定</div>
+      <div class="stab-fs">${f(Fs_SL, 2)}</div>
+      <div class="stab-req">必要安全率 ≥ 1.50</div>
+      <div class="stab-detail">
+        μ·ΣV = ${f(mu * sumV)} kN/m<br>
+        Pah = ${f(Pah)} kN/m
+      </div>
+      <span class="badge ${ok_SL ? 'pass' : 'fail'}">${ok_SL ? 'OK' : 'NG'}</span>
+    </div>
+    <div class="stab-card ${ok_BC ? 'pass' : 'fail'}">
+      <div class="stab-title">③ 支持力</div>
+      <div class="stab-fs" style="font-size:18px">${f(q_max, 1)} kN/m²</div>
+      <div class="stab-req">許容支持力 qa = ${qa} kN/m²</div>
+      <div class="stab-detail">
+        qmin = ${f(q_min, 1)} kN/m²<br>
+        e = ${f(Math.abs(e))} m (≤ B/6 = ${f(e_max)} m)
+      </div>
+      <span class="badge ${ok_BC ? 'pass' : 'fail'}">${ok_BC ? 'OK' : 'NG'}</span>
+    </div>
+  `;
+
+  // --- Ground pressure table ---
+  document.getElementById('ground-table').innerHTML = `
+    <table class="rt" style="margin-top:10px">
+      <tr><th>地盤反力項目</th><th>計算値</th><th>単位</th><th>判定</th></tr>
+      <tr>
+        <td>合力作用点 x_R（壁趾より）</td>
+        <td class="r">${f(x_R)}</td><td>m</td><td>-</td>
+      </tr>
+      <tr>
+        <td>偏心量 |e|</td>
+        <td class="r">${f(Math.abs(e))}</td><td>m</td>
+        <td><span class="badge ${ok_e ? 'pass' : 'fail'}">${ok_e ? 'OK' : 'NG'}</span> ≤ B/6 = ${f(e_max)} m</td>
+      </tr>
+      <tr class="${ok_q ? '' : 'hl'}">
+        <td>最大地盤反力 qmax（壁趾側）</td>
+        <td class="r">${f(q_max, 1)}</td><td>kN/m²</td>
+        <td><span class="badge ${ok_q ? 'pass' : 'fail'}">${ok_q ? 'OK' : 'NG'}</span> ≤ qa = ${qa} kN/m²</td>
+      </tr>
+      <tr>
+        <td>最小地盤反力 qmin（壁踵側）</td>
+        <td class="r">${f(q_min, 1)}</td><td>kN/m²</td>
+        <td><span class="badge ${q_min >= 0 ? 'pass' : 'fail'}">${q_min >= 0 ? 'OK' : 'NG'}</span> ≥ 0</td>
+      </tr>
+      <tr>
+        <td>平均地盤反力 qavg</td>
+        <td class="r">${f(sumV / B, 1)}</td><td>kN/m²</td><td>-</td>
+      </tr>
+    </table>
+  `;
+
+  // --- Forces table ---
+  document.getElementById('forces-table').innerHTML = `
+    <table class="rt">
+      <tr>
+        <th>項目</th><th>鉛直力 V (kN/m)</th>
+        <th>作用点 x (m)</th><th>抵抗モーメント Mr (kN·m/m)</th>
+        <th>水平力 H (kN/m)</th><th>作用高 y (m)</th><th>転倒モーメント Mo (kN·m/m)</th>
+      </tr>
+      <tr>
+        <td>壁体自重 W</td>
+        <td class="r">${f(W)}</td>
+        <td class="r">${f(xc_wall)}</td>
+        <td class="r">${f(Mr_W)}</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">-</td>
+      </tr>
+      <tr>
+        <td>土圧鉛直分力 Pav</td>
+        <td class="r">${f(Pav)}</td>
+        <td class="r">${f(x_Pa)}</td>
+        <td class="r">${f(Mr_Pav)}</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">-</td>
+      </tr>
+      <tr>
+        <td>土圧水平分力 Pah</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">-</td>
+        <td class="r">${f(Pah)}</td>
+        <td class="r">${f(y_Pa)}</td>
+        <td class="r">${f(Mo_Pah)}</td>
+      </tr>
+      <tr class="hl2">
+        <td><b>合　計</b></td>
+        <td class="r"><b>${f(sumV)}</b></td>
+        <td class="r"></td>
+        <td class="r"><b>ΣMr = ${f(sumMr)}</b></td>
+        <td class="r"><b>${f(Pah)}</b></td>
+        <td class="r"></td>
+        <td class="r"><b>ΣMo = ${f(sumMo)}</b></td>
+      </tr>
+    </table>
+  `;
+
+  // --- Earth pressure table ---
+  document.getElementById('ep-table').innerHTML = `
+    <table class="rt">
+      <tr><th>項目</th><th>記号</th><th>値</th><th>単位</th></tr>
+      <tr><td>背面勾配（算出）</td><td>n₂</td><td class="r">${f(n2, 3)}</td><td>-</td></tr>
+      <tr><td>背面角（水平から）</td><td>α</td><td class="r">${f(alpha / RAD, 2)}</td><td>度</td></tr>
+      <tr><td>クーロン土圧係数</td><td>Ka</td><td class="r">${f(Ka, 4)}</td><td>-</td></tr>
+      <tr><td>土圧合力（自重分）</td><td>Pa_w</td><td class="r">${f(Pa_w)}</td><td>kN/m</td></tr>
+      <tr><td>土圧合力（載荷重分）</td><td>Pa_q</td><td class="r">${f(Pa_q)}</td><td>kN/m</td></tr>
+      <tr class="hl"><td><b>土圧合力（合計）</b></td><td>Pa</td><td class="r"><b>${f(Pa)}</b></td><td>kN/m</td></tr>
+      <tr><td>水平分力</td><td>Pah</td><td class="r">${f(Pah)}</td><td>kN/m</td></tr>
+      <tr><td>鉛直分力（下向き）</td><td>Pav</td><td class="r">${f(Pav)}</td><td>kN/m</td></tr>
+      <tr><td>合力作用高さ（底面より）</td><td>y_Pa</td><td class="r">${f(y_Pa)}</td><td>m</td></tr>
+    </table>
+  `;
+}
+
+// ===== SVG DIAGRAM =====
+function drawDiagram(H, B, a, n1, n2, Pa, Pah, Pav, y_Pa, x_Pa, W, xc_W, q, mu, sumV) {
+  const svg   = document.getElementById('diagram');
+  const VW    = 620, VH = 280;
+  const ml    = 55, mr = 100, mt = 30, mb = 50;
+  const dw    = VW - ml - mr, dh = VH - mt - mb;
+
+  // World extents (add margins around wall)
+  const xMin = -B * 0.25, xMax = B * 1.7;
+  const yMin = -0.25,     yMax = H * 1.25;
+  const sx = dw / (xMax - xMin);
+  const sy = dh / (yMax - yMin);
+  const sc = Math.min(sx, sy);
+
+  // Center wall in available space
+  const ox = ml + (dw - B * sc) / 2 - xMin * sc;
+  const oy = VH - mb - (-yMin * sc);
+
+  const tx = x => ox + x * sc;
+  const ty = y => oy - y * sc;
+
+  // Wall corners
+  const P = [
+    [0,           0],     // 0: toe
+    [B,           0],     // 1: heel
+    [n1*H + a,    H],     // 2: top-back
+    [n1*H,        H],     // 3: top-front
+  ];
+
+  // Arrow markers
+  const defs = `<defs>
+    <marker id="ar"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#c0392b"/></marker>
+    <marker id="ag"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#27ae60"/></marker>
+    <marker id="ab"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#2980b9"/></marker>
+    <marker id="ab2" markerWidth="7" markerHeight="7" refX="1" refY="3.5" orient="auto"><path d="M7,0 L7,7 L0,3.5 z" fill="#2980b9"/></marker>
+    <pattern id="hatch" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="7" stroke="#777" stroke-width="0.8"/>
+    </pattern>
+    <pattern id="soil" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+      <rect width="4" height="8" fill="#c8a96e" opacity="0.4"/>
+    </pattern>
+  </defs>`;
+
+  let s = defs;
+
+  // Ground hatching
+  s += `<rect x="${tx(-B*0.3)}" y="${ty(0)}" width="${tx(B*1.7)-tx(-B*0.3)}" height="14"
+         fill="url(#hatch)" opacity="0.6"/>`;
+  // Ground line
+  s += `<line x1="${tx(-B*0.3)}" y1="${ty(0)}" x2="${tx(B*1.7)}" y2="${ty(0)}"
+         stroke="#666" stroke-width="1.5"/>`;
+
+  // Backfill area
+  const bfRight = B + B * 0.55;
+  s += `<polygon points="${tx(P[1][0])},${ty(P[1][1])} ${tx(bfRight)},${ty(0)} ${tx(bfRight)},${ty(H)} ${tx(P[2][0])},${ty(P[2][1])}"
+         fill="#d4a96a" opacity="0.35"/>`;
+
+  // Surcharge arrows
+  if (q > 0) {
+    const arrH = Math.max(0.15 * H, 0.5);
+    for (let xi = P[2][0] + 0.2; xi < bfRight - 0.1; xi += (bfRight - P[2][0]) / 5) {
+      const x1 = tx(xi), y1 = ty(H + arrH), y2 = ty(H + 0.05);
+      s += `<line x1="${x1}" y1="${y1}" x2="${x1}" y2="${y2}" stroke="#e67e22" stroke-width="1.5" marker-end="url(#ar)"/>`;
+    }
+    const qx = tx((P[2][0] + bfRight) / 2);
+    s += `<text x="${qx}" y="${ty(H + arrH + 0.18)}" text-anchor="middle" font-size="11" fill="#d35400">q = ${q} kN/m²</text>`;
+  }
+
+  // Wall polygon
+  const wp = P.map(p => `${tx(p[0])},${ty(p[1])}`).join(' ');
+  s += `<polygon points="${wp}" fill="#b0bec5" stroke="#37474f" stroke-width="1.5"/>`;
+  s += `<polygon points="${wp}" fill="url(#hatch)" opacity="0.35"/>`;
+
+  // === Force arrows ===
+  // Reference length for arrows (1/4 of B in SVG pixels)
+  const refPx = B * sc * 0.4;
+
+  // Weight W (green, downward)
+  const wRef = Math.max(W, 1);
+  const wLen = refPx;
+  s += `<line x1="${tx(xc_W)}" y1="${ty(H * 0.65)}" x2="${tx(xc_W)}" y2="${ty(H * 0.65) + wLen}"
+         stroke="#27ae60" stroke-width="2" marker-end="url(#ag)"/>`;
+  s += `<text x="${tx(xc_W)}" y="${ty(H * 0.65) - 5}" text-anchor="middle" font-size="11" fill="#1e8449">W = ${W.toFixed(0)} kN/m</text>`;
+
+  // Pah (red, horizontal, from back face leftward)
+  const pahLen = refPx * (Pah / wRef);
+  const pahX1  = tx(x_Pa) + Math.min(pahLen + 5, B * sc * 0.8);
+  s += `<line x1="${pahX1}" y1="${ty(y_Pa)}" x2="${tx(x_Pa)}" y2="${ty(y_Pa)}"
+         stroke="#c0392b" stroke-width="2.5" marker-end="url(#ar)"/>`;
+  s += `<text x="${pahX1 + 4}" y="${ty(y_Pa) + 4}" font-size="11" fill="#922b21">Pah = ${Pah.toFixed(0)} kN/m</text>`;
+
+  // Pav (orange, downward at heel)
+  if (Pav > 0.1) {
+    const pavLen = refPx * (Pav / wRef);
+    s += `<line x1="${tx(x_Pa)}" y1="${ty(y_Pa + 0.05)}" x2="${tx(x_Pa)}" y2="${ty(y_Pa + 0.05) + pavLen}"
+           stroke="#e67e22" stroke-width="2" marker-end="url(#ar)"/>`;
+    s += `<text x="${tx(x_Pa) + 4}" y="${ty(y_Pa + 0.05) + pavLen / 2 + 4}" font-size="10" fill="#d35400">Pav</text>`;
+  }
+
+  // Base reaction (upward, trapezoid pressure diagram)
+  const q_max = (sumV / B) * (1 + 6 * (B / 2 - (sumMrForDiagram(W, xc_W, Pav, x_Pa, Pah, y_Pa) / sumV)) / B);
+  const q_min_v = Math.max(0, (sumV / B) * (1 - 6 * (B / 2 - (sumMrForDiagram(W, xc_W, Pav, x_Pa, Pah, y_Pa) / sumV)) / B));
+  const qscale = refPx / Math.max(q_max, 1) * 0.6;
+  const qy = ty(-0.12);
+  // Draw pressure trapezoid below base
+  s += `<polygon points="${tx(0)},${qy} ${tx(B)},${qy} ${tx(B)},${qy + q_min_v * qscale} ${tx(0)},${qy + q_max * qscale}"
+         fill="#3498db" opacity="0.25" stroke="#2980b9" stroke-width="1"/>`;
+  s += `<text x="${tx(0)}" y="${qy + q_max * qscale + 12}" font-size="10" fill="#1a5276">${q_max.toFixed(0)}</text>`;
+  s += `<text x="${tx(B)}" y="${qy + q_min_v * qscale + 12}" font-size="10" fill="#1a5276" text-anchor="end">${q_min_v.toFixed(0)}</text>`;
+  s += `<text x="${tx(B/2)}" y="${qy + (q_max+q_min_v)/2*qscale + 12}" font-size="10" fill="#1a5276" text-anchor="middle">kN/m²</text>`;
+
+  // === Dimension lines ===
+  // H (left side)
+  const dimX = tx(-B * 0.18);
+  s += `<line x1="${dimX}" y1="${ty(0)}" x2="${dimX}" y2="${ty(H)}" stroke="#2980b9" stroke-width="1" marker-end="url(#ab)" marker-start="url(#ab2)"/>`;
+  s += `<text x="${dimX - 5}" y="${ty(H / 2)}" font-size="11" fill="#1a5276" text-anchor="middle" transform="rotate(-90,${dimX - 5},${ty(H / 2)})">H = ${H} m</text>`;
+
+  // B (bottom)
+  const dimY = ty(-0.55);
+  s += `<line x1="${tx(0)}" y1="${dimY}" x2="${tx(B)}" y2="${dimY}" stroke="#2980b9" stroke-width="1" marker-end="url(#ab)" marker-start="url(#ab2)"/>`;
+  s += `<text x="${tx(B / 2)}" y="${dimY - 4}" font-size="11" fill="#1a5276" text-anchor="middle">B = ${B} m</text>`;
+
+  // Labels
+  s += `<text x="${tx((n1*H + B)/2 - 0.1)}" y="${ty(H * 0.45)}" text-anchor="middle" font-size="12" fill="#37474f" font-weight="bold">重力式</text>`;
+  s += `<text x="${tx((P[2][0] + bfRight)/2)}" y="${ty(H * 0.5)}" text-anchor="middle" font-size="11" fill="#7d6608" opacity="0.9">裏込め土</text>`;
+
+  svg.innerHTML = s;
+}
+
+// Helper for diagram (avoids re-declaring sumMr variable in outer scope)
+function sumMrForDiagram(W, xc_W, Pav, x_Pa, Pah, y_Pa) {
+  return W * xc_W + Pav * x_Pa;
+}
+
+// Auto-calculate on load
+window.addEventListener('load', calculate);
+</script>
+</body>
+</html>
