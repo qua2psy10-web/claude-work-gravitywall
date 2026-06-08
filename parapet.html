@@ -255,7 +255,8 @@
           【水圧】Pwh = ½·γw·hw²　作用高 = hw/3（底面より）<br>
           【揚圧力】U = ½·γw·hw·B　川表趾側最大（三角形分布）, 作用点 = B/3（川表趾より）<br>
           【川裏土圧】クーロン式 Ka, Pa = ½Ka·γs·hs² + Ka·q·hs　作用方向：川裏→川表（-x）<br>
-          【転倒照査基点】川裏趾（x=B）　【安全率】常時：転倒≥1.5, 滑動≥1.2　地震時：転倒≥1.1, 滑動≥1.0
+          【転倒照査基点】常時・地震時：川裏趾（x=B）　衝突時：川表趾（x=0、衝突が川裏→川表方向のため）<br>
+          【安全率】常時：転倒≥1.5, 滑動≥1.2　地震時・衝突時：転倒≥1.1, 滑動≥1.0
         </div>
       </div>
     </div>
@@ -367,6 +368,47 @@ function checkStability(B, mu, qa, W, xc, zc, Pwh, y_Pw, Pwv, x_Pwv, U, xu, Pah,
            sumMr, sumMo, sumV, sumH, Mr_W, Mr_Pav, Mr_Pah, Mo_Pw, Mo_Pwv, Mo_U, Mo_Feq, x_R_from_heel };
 }
 
+// 衝突荷重の安定照査（川裏→川表方向）: 川表趾（x=0）まわりの転倒
+function checkStabilityCollision(B, mu, qa, W, xc, Pwh, y_Pw, Pwv, x_Pwv, U, xu, Pah, Pav, y_Pa, x_Pa, P_col, y_col) {
+  // Moments about RIVER-SIDE TOE (x=0)
+  // CCW positive = overturning (heel goes up, wall tips toward river)
+  const Mr_W   = W * xc;          // CW (weight resists)
+  const Mr_Pw  = Pwh * y_Pw;      // CW (water pressure resists collision-induced tip)
+  const Mr_Pav = Pav * x_Pa;      // CW (earth pressure vertical resists)
+  const sumMr  = Mr_W + Mr_Pw + Mr_Pav;
+
+  const Mo_col = P_col * y_col;   // CCW (collision overturns about river toe)
+  const Mo_Pah = Pah * y_Pa;      // CCW (earth pressure horizontal also toward river)
+  const Mo_Pwv = Pwv * x_Pwv;     // CCW (upward force on inclined face)
+  const Mo_U   = U * xu;          // CCW (uplift)
+  const sumMo  = Mo_col + Mo_Pah + Mo_Pwv + Mo_U;
+
+  const Fs_OT  = sumMo > 1e-9 ? sumMr / sumMo : 999;
+  const req_OT = 1.1;
+  const ok_OT  = Fs_OT >= req_OT;
+
+  // Sliding toward river (-x): collision + earth pressure vs water + friction
+  const sumV  = W - Pwv - U + Pav;
+  const sumH  = Math.max(P_col + Pah - Pwh, 0);
+  const Fs_SL = sumH > 1e-9 ? mu * sumV / sumH : 999;
+  const req_SL = 1.0;
+  const ok_SL = Fs_SL >= req_SL;
+
+  // Bearing capacity from river toe
+  const x_R_from_toe  = sumV > 1e-9 ? (sumMr - sumMo) / sumV : B / 2;
+  const e       = B / 2 - x_R_from_toe;  // positive → resultant toward river toe
+  const e_lim   = B / 4;
+  const q_max   = sumV > 0 ? (sumV / B) * (1 + 6 * e / B) : 0;
+  const q_min   = sumV > 0 ? (sumV / B) * (1 - 6 * e / B) : 0;
+  const qa_lim  = qa * 1.5;
+  const ok_e    = Math.abs(e) <= e_lim;
+  const ok_q    = q_max <= qa_lim;
+  const ok_BC   = ok_e && ok_q;
+
+  return { Fs_OT, req_OT, ok_OT, Fs_SL, req_SL, ok_SL, e, e_lim, q_max, q_min, qa_lim, ok_BC, ok_e, ok_q,
+           sumMr, sumMo, sumV, sumH, x_R_from_heel: B - x_R_from_toe };
+}
+
 function stabCards(res, isSeismic) {
   const caseTag = isSeismic ? '地震時' : '常時';
   return `
@@ -446,9 +488,9 @@ function calculate() {
   const useCol = document.getElementById('use_col').checked;
   const P_col  = useCol ? +document.getElementById('p_col').value : 0;
   const y_col  = useCol ? +document.getElementById('y_col').value : 0;
-  const res3 = useCol ? checkStability(B, mu, qa, wall.W, wall.xc, wall.zc,
+  const res3 = useCol ? checkStabilityCollision(B, mu, qa, wall.W, wall.xc,
     wp1.Pwh, wp1.y_Pw, wp1.Pwv, wp1.x_Pwv,
-    ul1.U, ul1.xu, ep.Pah, ep.Pav, ep.y_Pa, ep.x_Pa, P_col, y_col, true) : null;
+    ul1.U, ul1.xu, ep.Pah, ep.Pav, ep.y_Pa, ep.x_Pa, P_col, y_col) : null;
 
   // ---- RENDER ----
   drawDiagram(H, B, a, n1, wall.n2, hw, gw, useUplift,
@@ -741,18 +783,20 @@ function drawDiagram(H, B, a, n1, n2, hw, gw, useUplift, wp, ul, ep, W, xc_W, zc
   s += `<line x1="${tx(0)}" y1="${dimY}" x2="${tx(B)}" y2="${dimY}" stroke="#2471a3" stroke-width="1" marker-end="url(#ab)" marker-start="url(#ab2)"/>`;
   s += `<text x="${tx(B/2)}" y="${dimY-4}" font-size="11" fill="#1a5276" text-anchor="middle">B = ${B} m</text>`;
 
-  // Collision force P_col (purple, horizontal → toward land side, from river face)
+  // Collision force P_col (purple) – 川裏側から川表方向（→ river / -x）
   if (P_col > 0.01) {
-    const cLen = refPx * (P_col / wRef);
-    const cy   = ty(Math.min(y_col, H));
-    const cx2  = tx(0);  // acts on river face
-    const cx1  = cx2 - Math.min(cLen, B * sc * 0.7);
-    s += `<line x1="${cx1}" y1="${cy}" x2="${cx2}" y2="${cy}"
+    const cLen     = Math.min(refPx * (P_col / wRef), B * sc * 0.75);
+    const yc       = Math.min(y_col, H);
+    const cy       = ty(yc);
+    const xFaceL   = tx(B - n2 * yc);   // 川裏面（x=B-n2*y）の SVG x 座標
+    const cx_start = xFaceL + cLen;      // 矢印開始点（川裏外側）
+    // 川裏外側 → 川裏面（矢印が川表方向を向く）
+    s += `<line x1="${cx_start}" y1="${cy}" x2="${xFaceL}" y2="${cy}"
            stroke="#7d3c98" stroke-width="2.5" stroke-dasharray="6,3" marker-end="url(#apu)"/>`;
-    s += `<text x="${cx1 - 4}" y="${cy - 5}" text-anchor="end" font-size="11" fill="#6c3483">P_col=${P_col.toFixed(0)} kN/m</text>`;
-    // 作用高の水平補助線
-    s += `<line x1="${tx(0)}" y1="${cy}" x2="${tx(B)}" y2="${cy}" stroke="#7d3c98" stroke-width="0.6" stroke-dasharray="3,3" opacity="0.5"/>`;
-    s += `<text x="${tx(B)+4}" y="${cy+4}" font-size="10" fill="#6c3483">y=${y_col}m</text>`;
+    s += `<text x="${cx_start + 4}" y="${cy - 5}" font-size="11" fill="#6c3483">P_col=${P_col.toFixed(0)} kN/m</text>`;
+    // 作用高の補助線
+    s += `<line x1="${tx(0)}" y1="${cy}" x2="${xFaceL}" y2="${cy}" stroke="#7d3c98" stroke-width="0.5" stroke-dasharray="3,3" opacity="0.4"/>`;
+    s += `<text x="${tx(0) - 4}" y="${cy + 4}" font-size="10" fill="#6c3483" text-anchor="end">y=${y_col}m</text>`;
   }
 
   // Labels
