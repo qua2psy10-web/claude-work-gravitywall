@@ -72,6 +72,37 @@
     .formula-note { background: #f0f4f8; border-radius: 5px; padding: 9px 12px; font-size: 11px; color: #666; line-height: 1.7; margin-top: 10px; }
     .section-title { font-size: 13px; font-weight: bold; color: #1a4a6c; margin: 14px 0 8px; border-bottom: 1px solid #dde4ea; padding-bottom: 4px; }
 
+    /* ===== CALCULATION PROCESS ===== */
+    .calc-toggle { width: 100%; text-align: left; padding: 9px 14px; background: #f0f4f8; border: 1px solid #d0d8e4; border-radius: 6px; font-size: 13px; font-weight: bold; color: #1a4a6c; cursor: pointer; margin-top: 2px; display: flex; justify-content: space-between; align-items: center; }
+    .calc-toggle:hover { background: #e4ecf4; }
+    .calc-toggle .arrow { transition: transform 0.2s; }
+    .calc-toggle.open .arrow { transform: rotate(90deg); }
+
+    .calc-body { display: none; padding: 14px 0 4px; }
+    .calc-body.open { display: block; }
+
+    .calc-section { margin-bottom: 16px; }
+    .calc-section h3 { font-size: 12px; font-weight: bold; color: #1a4a6c; background: #e8f0f8; padding: 4px 10px; border-left: 4px solid #1a4a6c; margin-bottom: 8px; }
+
+    table.calc { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 4px; }
+    table.calc td { padding: 3px 8px; vertical-align: top; border-bottom: 1px solid #f0f0f0; }
+    table.calc td.sym { width: 36px; font-weight: bold; color: #1a4a6c; white-space: nowrap; }
+    table.calc td.eq  { width: 28px; text-align: center; color: #888; }
+    table.calc td.formula { font-family: 'Courier New', monospace; color: #555; width: 260px; }
+    table.calc td.sub { font-family: 'Courier New', monospace; color: #27578a; }
+    table.calc td.res { font-family: 'Courier New', monospace; font-weight: bold; color: #1a3a5c; white-space: nowrap; }
+    table.calc td.unit { color: #888; width: 56px; }
+    table.calc tr.total td { background: #f0f5fb; border-top: 1.5px solid #b0c4d8; }
+    table.calc tr.ok td   { background: #f0fff4; }
+    table.calc tr.ng td   { background: #fff5f5; }
+
+    @media print {
+      .calc-toggle { display: none; }
+      .calc-body { display: block !important; }
+      .calc-section h3 { font-size: 10pt; }
+      table.calc td { font-size: 9pt; padding: 2px 5px; }
+    }
+
     .btn-print { width: 100%; padding: 9px; background: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; margin-top: 10px; letter-spacing: 0.5px; transition: background 0.2s; }
     .btn-print:hover { background: #388e3c; }
 
@@ -255,9 +286,17 @@
           【水圧】Pwh = ½·γw·hw²　作用高 = hw/3（底面より）<br>
           【揚圧力】U = ½·γw·hw·B　川表趾側最大（三角形分布）, 作用点 = B/3（川表趾より）<br>
           【川裏土圧】クーロン式 Ka, Pa = ½Ka·γs·hs² + Ka·q·hs　作用方向：川裏→川表（-x）<br>
-          【転倒照査基点】常時・地震時：川裏趾（x=B）　衝突時：川表趾（x=0、衝突が川裏→川表方向のため）<br>
+          【転倒照査基点】常時・地震時：川裏趾（x=B）　衝突時：川表趾（x=0）<br>
           【安全率】常時：転倒≥1.5, 滑動≥1.2　地震時・衝突時：転倒≥1.1, 滑動≥1.0
         </div>
+      </div>
+
+      <div class="card">
+        <h2>計算過程</h2>
+        <button class="calc-toggle" id="calc-toggle-btn" onclick="toggleCalcProcess()">
+          <span>数式・代入値を表示</span><span class="arrow">▶</span>
+        </button>
+        <div class="calc-body" id="calc-process"></div>
       </div>
     </div>
   </div>
@@ -637,6 +676,16 @@ function calculate() {
       <tr><td>作用高（底面より）</td><td>zc</td><td class="r">${f(wall.zc)}</td><td>m</td></tr>
       <tr><td>地震時水位</td><td>hw_eq</td><td class="r">${hw_eq}</td><td>m</td></tr>
     </table>` : ''}`;
+
+  // 計算過程レンダリング
+  renderCalcProcess(
+    { H, B, a, n1, gc, gw, hw, hw_eq, mu, qa, kh,
+      useEP, hs, q, gs,
+      phi_deg: +document.getElementById('phi').value,
+      delta_deg: +document.getElementById('delta').value,
+      beta_deg: +document.getElementById('beta').value },
+    wall, wp1, ul1, ep, res1, res2, res3, useCol, P_col, y_col
+  );
 }
 
 // ===== SVG DIAGRAM =====
@@ -805,6 +854,157 @@ function drawDiagram(H, B, a, n1, n2, hw, gw, useUplift, wp, ul, ep, W, xc_W, zc
   s += `<text x="${tx(B*1.1)}"  y="${ty(H*0.4)}" text-anchor="middle" font-size="10" fill="#7d6608">川裏側</text>`;
 
   svg.innerHTML = s;
+}
+
+// ===== CALCULATION PROCESS =====
+function toggleCalcProcess() {
+  const btn  = document.getElementById('calc-toggle-btn');
+  const body = document.getElementById('calc-process');
+  const open = body.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  btn.querySelector('span:first-child').textContent = open ? '数式・代入値を非表示' : '数式・代入値を表示';
+}
+
+function row(sym, formula, sub, res, unit, cls) {
+  return `<tr${cls ? ` class="${cls}"` : ''}>
+    <td class="sym">${sym}</td>
+    <td class="eq">=</td>
+    <td class="formula">${formula}</td>
+    <td class="sub">= ${sub}</td>
+    <td class="res">${res}</td>
+    <td class="unit">${unit}</td>
+  </tr>`;
+}
+function rowHead(label) {
+  return `<tr><td colspan="6" style="padding:6px 8px 2px;font-weight:bold;color:#555;font-size:11px;border-bottom:1px solid #dde4ea">${label}</td></tr>`;
+}
+function judgeRow(label, val, req, ok, unit) {
+  const cls = ok ? 'ok' : 'ng';
+  const mark = ok ? '✔ OK' : '✘ NG';
+  return `<tr class="${cls}">
+    <td class="sym">${label}</td><td class="eq"></td>
+    <td class="formula" colspan="2" style="color:${ok?'#1a7a40':'#c0392b'}">${f(val,2)} ${unit} &nbsp;${req}&nbsp; → <b>${mark}</b></td>
+    <td></td><td></td>
+  </tr>`;
+}
+
+function renderCalcProcess(inputs, wall, wp1, ul1, ep, res1, res2, res3, useCol, P_col, y_col) {
+  const { H, B, a, n1, gc, gw, hw, hw_eq, mu, qa, kh, useEP, hs, q,
+          gs, phi_deg, delta_deg, beta_deg } = inputs;
+  const n2 = wall.n2;
+
+  let s = '';
+
+  // ── 1. 壁体形状・自重 ──
+  s += `<div class="calc-section"><h3>１．壁体形状・自重</h3><table class="calc">`;
+  s += rowHead('断面分割（前面三角形 + 矩形 + 背面三角形）');
+  const Af = 0.5*n1*H*H, Ar = a*H, Ab = 0.5*n2*H*H;
+  const Aw = Af+Ar+Ab;
+  s += row('A₁', '½·n₁·H²', `½×${n1}×${H}²`, `${f(Af)} m²`, 'm²');
+  s += row('A₂', 'a·H',      `${a}×${H}`,      `${f(Ar)} m²`, 'm²');
+  s += row('A₃', '½·n₂·H²', `½×${f(n2,3)}×${H}²`, `${f(Ab)} m²`, 'm²');
+  s += row('A',  'A₁+A₂+A₃', `${f(Af)}+${f(Ar)}+${f(Ab)}`, f(Aw), 'm²', 'total');
+  s += row('W',  'γc·A',     `${gc}×${f(Aw)}`, f(wall.W), 'kN/m', 'total');
+  s += row('xc', '（重心 x）', '（断面積按分）', f(wall.xc), 'm');
+  s += row('zc', '（重心 z）', '（断面積按分）', f(wall.zc), 'm');
+  s += `</table></div>`;
+
+  // ── 2. 水圧（常時） ──
+  s += `<div class="calc-section"><h3>２．水圧（常時　hw = ${hw} m）</h3><table class="calc">`;
+  s += row('Pwh', '½·γw·hw²',   `½×${gw}×${hw}²`,        f(wp1.Pwh), 'kN/m');
+  s += row('y_Pw','hw / 3',     `${hw}/3`,                 f(wp1.y_Pw), 'm');
+  if (n1 > 0) {
+    s += row('Pwv', 'γw·½·n₁·hw²', `${gw}×½×${n1}×${hw}²`, f(wp1.Pwv), 'kN/m（上向き）');
+    s += row('x_Pwv','n₁·hw/3',   `${n1}×${hw}/3`,          f(wp1.x_Pwv), 'm');
+  }
+  s += `</table></div>`;
+
+  // ── 3. 揚圧力 ──
+  if (ul1.U > 0) {
+    s += `<div class="calc-section"><h3>３．揚圧力（底面浸透水圧）</h3><table class="calc">`;
+    s += row('U',  '½·γw·hw·B', `½×${gw}×${hw}×${B}`, f(ul1.U), 'kN/m（上向き）');
+    s += row('xu', 'B/3',       `${B}/3`,               f(ul1.xu), 'm（川表趾より）');
+    s += `</table></div>`;
+  }
+
+  // ── 4. 川裏土圧 ──
+  if (useEP && ep.Pa > 0) {
+    s += `<div class="calc-section"><h3>４．川裏土圧（クーロン式）</h3><table class="calc">`;
+    s += rowHead(`α = 90° − arctan(n₂) = ${f(ep.alpha/Math.PI*180,2)}°　ψ = arctan(n₂) = ${f(Math.atan(n2)/Math.PI*180,2)}°`);
+    s += row('Ka', 'クーロン式', `φ=${phi_deg}°, δ=${delta_deg}°, β=${beta_deg}°`, f(ep.Ka,4), '-');
+    s += row('Pa_w', '½·Ka·γs·hs²', `½×${f(ep.Ka,4)}×${gs}×${hs}²`, f(ep.Pa_w), 'kN/m');
+    s += row('Pa_q', 'Ka·q·hs',     `${f(ep.Ka,4)}×${q}×${hs}`,     f(ep.Pa_q), 'kN/m');
+    s += row('Pa',   'Pa_w + Pa_q', `${f(ep.Pa_w)}+${f(ep.Pa_q)}`,  f(ep.Pa),   'kN/m', 'total');
+    s += row('Pah',  'Pa·cos(δ+ψ)', '（水平分力）', f(ep.Pah), 'kN/m');
+    s += row('Pav',  'Pa·sin(δ+ψ)', '（鉛直分力, 下向き）', f(ep.Pav), 'kN/m');
+    s += row('y_Pa', '（合力作用高）', '（三角形+矩形按分）', f(ep.y_Pa), 'm');
+    s += `</table></div>`;
+  }
+
+  // ── ケース別照査 ──
+  function caseSection(num, title, res, wp, ul, Fex, yEx, isCol) {
+    let out = `<div class="calc-section"><h3>${num}．${title}</h3><table class="calc">`;
+    const pivot = isCol ? '川表趾（x=0）' : '川裏趾（x=B）';
+    out += rowHead(`【転倒照査】 基点：${pivot}`);
+    if (isCol) {
+      out += row('Mr', 'W·xc + Pwh·y_Pw + Pav·x_Pa',
+        `${f(wall.W)}×${f(wall.xc)} + ${f(wp.Pwh)}×${f(wp.y_Pw)} + ${f(ep.Pav)}×${f(ep.x_Pa)}`,
+        f(res.sumMr), 'kN·m/m');
+      out += row('Mo', 'P_col·y_col + Pah·y_Pa + …',
+        `${f(P_col)}×${f(y_col)} + ${f(ep.Pah)}×${f(ep.y_Pa)} + …`,
+        f(res.sumMo), 'kN·m/m');
+    } else {
+      out += row('Mr', 'W·(B−xc) + Pav·(B−x_Pa) + Pah·y_Pa',
+        `${f(wall.W)}×(${B}−${f(wall.xc)}) + ${f(ep.Pav)}×(${B}−${f(ep.x_Pa)}) + ${f(ep.Pah)}×${f(ep.y_Pa)}`,
+        f(res.sumMr), 'kN·m/m');
+      const moSub = `${f(wp.Pwh)}×${f(wp.y_Pw)}${wp.Pwv>0.01?` + ${f(wp.Pwv)}×(${B}−${f(wp.x_Pwv)})`:''}${ul.U>0.01?` + ${f(ul.U)}×(${B}−${f(ul.xu)})`:''}${Fex>0.01?` + ${f(Fex)}×${f(yEx)}`:''}`;
+      out += row('Mo', 'Pwh·y_Pw + Pwv·(B−x_Pwv) + U·(B−xu) + …', moSub, f(res.sumMo), 'kN·m/m');
+    }
+    out += row('Fs_OT', 'ΣMr / ΣMo', `${f(res.sumMr)} / ${f(res.sumMo)}`, f(res.Fs_OT,2), '');
+    out += judgeRow('Fs_OT', res.Fs_OT, `≥ ${res.req_OT}`, res.ok_OT, '');
+
+    out += rowHead('【滑動照査】');
+    out += row('ΣV', isCol ? 'W − Pwv − U + Pav' : 'W − Pwv − U + Pav',
+      `${f(wall.W)} − ${f(wp.Pwv)} − ${f(ul.U)} + ${f(ep.Pav)}`, f(res.sumV), 'kN/m');
+    const hSub = isCol
+      ? `${f(P_col)} + ${f(ep.Pah)} − ${f(wp.Pwh)}`
+      : `${f(wp.Pwh)}${Fex>0?` + ${f(Fex)}`:''}${ep.Pah>0?` − ${f(ep.Pah)}`:''}`;
+    out += row('ΣH', isCol ? 'P_col + Pah − Pwh' : 'Pwh + F_extra − Pah',
+      hSub, f(res.sumH), 'kN/m');
+    out += row('Fs_SL', 'μ·ΣV / ΣH', `${mu}×${f(res.sumV)} / ${f(res.sumH)}`, f(res.Fs_SL,2), '');
+    out += judgeRow('Fs_SL', res.Fs_SL, `≥ ${res.req_SL}`, res.ok_SL, '');
+
+    out += rowHead('【支持力照査（偏心荷重）】');
+    out += row('x_R', '(ΣMr − ΣMo) / ΣV',
+      `(${f(res.sumMr)} − ${f(res.sumMo)}) / ${f(res.sumV)}`, f(res.x_R_from_heel), 'm（川裏趾より）');
+    const eVal = Math.abs(res.e);
+    out += row('e', '|B/2 − x_R|', `|${B}/2 − ${f(res.x_R_from_heel)}|`, f(eVal), 'm');
+    out += judgeRow('e', eVal, `≤ B/${isCol||Fex>0?'4':'6'} = ${f(res.e_lim)} m`, res.ok_e, 'm');
+    out += row('qmax', 'ΣV/B·(1+6e/B)',
+      `${f(res.sumV)}/${B}×(1+6×${f(eVal)}/${B})`, f(res.q_max,1), 'kN/m²');
+    out += judgeRow('qmax', res.q_max, `≤ qa${isCol||Fex>0?'×1.5':''} = ${f(res.qa_lim,0)} kN/m²`, res.ok_q, 'kN/m²');
+    out += row('qmin', 'ΣV/B·(1−6e/B)',
+      `${f(res.sumV)}/${B}×(1−6×${f(eVal)}/${B})`, f(res.q_min,1), 'kN/m²');
+
+    out += `</table></div>`;
+    return out;
+  }
+
+  s += caseSection('５', '常時（計画高水位時）', res1, wp1, ul1, 0, 0, false);
+
+  const wp2 = { Pwh: 0.5*gw*hw_eq*hw_eq, y_Pw: hw_eq/3, Pwv: gw*0.5*n1*hw_eq*hw_eq, x_Pwv: n1*hw_eq/3 };
+  if (hw_eq <= 0) { wp2.Pwh = 0; wp2.y_Pw = 0; wp2.Pwv = 0; }
+  const ul2 = ul1.U > 0
+    ? { U: 0.5*gw*hw_eq*B, xu: B/3 }
+    : { U: 0, xu: B/3 };
+  const Feq = kh * wall.W;
+  s += caseSection('６', `地震時（hw_eq = ${hw_eq} m, kh = ${kh}）`, res2, wp2, ul2, Feq, wall.zc, false);
+
+  if (useCol && res3) {
+    s += caseSection('７', `衝突時（P_col = ${P_col} kN/m, y_col = ${y_col} m）`, res3, wp1, ul1, P_col, y_col, true);
+  }
+
+  document.getElementById('calc-process').innerHTML = s;
 }
 
 // ===== PRINT / PDF =====
