@@ -41,8 +41,9 @@
     .result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
     .case-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px; }
     .case-label { font-size: 13px; font-weight: bold; color: #555; margin-bottom: 8px; padding: 5px 10px; border-radius: 4px; }
-    .case-label.normal  { background: #e8f4fd; color: #1a4a6c; }
-    .case-label.seismic { background: #fef9e7; color: #7d6608; }
+    .case-label.normal   { background: #e8f4fd; color: #1a4a6c; }
+    .case-label.seismic  { background: #fef9e7; color: #7d6608; }
+    .case-label.collision{ background: #f5eef8; color: #6c3483; }
 
     .stab-card { border-radius: 7px; padding: 10px 12px; border-left: 5px solid #ccc; background: #fafafa; }
     .stab-card.pass { border-left-color: #2ecc71; background: #f0fff4; }
@@ -171,6 +172,14 @@
       <div class="sec-label">地震条件</div>
       <div class="fg"><label>水平震度 kh</label><input id="kh" type="number" value="0.15" min="0" max="0.5" step="0.01"><span class="unit">-</span></div>
 
+      <div class="sec-label">衝突荷重</div>
+      <label class="fg-check"><input type="checkbox" id="use_col" onchange="toggleCol()"> 衝突荷重を考慮する</label>
+      <div id="col_inputs" class="sub-inputs" style="display:none">
+        <div class="fg"><label>衝突力 P_col</label><input id="p_col" type="number" value="100" min="0" step="10"><span class="unit">kN/m</span></div>
+        <div class="fg"><label>作用高 y_col</label><input id="y_col" type="number" value="1.0" min="0" step="0.1"><span class="unit">m</span><span class="note">底面より</span></div>
+        <div style="font-size:11px;color:#888;margin-top:2px">常時水圧と同時作用（偶発荷重）<br>安全率：転倒≥1.1，滑動≥1.0，e≤B/4</div>
+      </div>
+
       <button class="btn" onclick="calculate()">計　算　実　行</button>
     </div>
 
@@ -227,6 +236,10 @@
             <div class="result-grid" id="stab-seismic"></div>
           </div>
         </div>
+        <div id="stab-collision-wrap" class="hidden">
+          <div class="case-label collision" style="margin-bottom:8px">③ 衝突時（常時水圧＋衝突荷重）</div>
+          <div class="result-grid" id="stab-collision"></div>
+        </div>
         <div id="ground-table"></div>
       </div>
 
@@ -256,6 +269,11 @@ const f = (v, d = 3) => (+v).toFixed(d);
 function toggleEP() {
   document.getElementById('ep_inputs').style.display =
     document.getElementById('use_ep').checked ? '' : 'none';
+}
+
+function toggleCol() {
+  document.getElementById('col_inputs').style.display =
+    document.getElementById('use_col').checked ? '' : 'none';
 }
 
 function calcWall(H, B, a, n1, gc) {
@@ -308,7 +326,8 @@ function calcEarthPressure(H, B, a, n1, gs, phi, delta, beta, hs, q, useEP) {
   return { Pah, Pav, y_Pa, x_Pa, Pa, Ka, Pa_w, Pa_q, n2, psi, alpha };
 }
 
-function checkStability(B, mu, qa, W, xc, zc, Pwh, y_Pw, Pwv, x_Pwv, U, xu, Pah, Pav, y_Pa, x_Pa, Feq, isSeismic) {
+// F_extra: 追加水平力（地震力 or 衝突荷重），y_extra: その作用高（底面より）
+function checkStability(B, mu, qa, W, xc, zc, Pwh, y_Pw, Pwv, x_Pwv, U, xu, Pah, Pav, y_Pa, x_Pa, F_extra, y_extra, isRelaxed) {
   // All moments about LAND-SIDE HEEL (x=B)
   // CW positive = overturning (river side lifts when water pushes toward land)
   const Mr_W    = W * (B - xc);
@@ -319,27 +338,27 @@ function checkStability(B, mu, qa, W, xc, zc, Pwh, y_Pw, Pwv, x_Pwv, U, xu, Pah,
   const Mo_Pw   = Pwh * y_Pw;
   const Mo_Pwv  = Pwv * (B - x_Pwv);   // upward on inclined face → adds to overturning
   const Mo_U    = U * (B - xu);         // uplift → adds to overturning
-  const Mo_Feq  = Feq * zc;
+  const Mo_Feq  = F_extra * y_extra;    // seismic or collision moment
   const sumMo   = Mo_Pw + Mo_Pwv + Mo_U + Mo_Feq;
 
   const Fs_OT  = sumMo > 1e-9 ? sumMr / sumMo : 999;
-  const req_OT = isSeismic ? 1.1 : 1.5;
+  const req_OT = isRelaxed ? 1.1 : 1.5;
   const ok_OT  = Fs_OT >= req_OT;
 
   // Sliding: net vertical and horizontal
   const sumV = W - Pwv - U + Pav;
-  const sumH = Math.max(Pwh + Feq - Pah, 0);
+  const sumH = Math.max(Pwh + F_extra - Pah, 0);
   const Fs_SL  = sumH > 1e-9 ? mu * sumV / sumH : 999;
-  const req_SL = isSeismic ? 1.0 : 1.2;
+  const req_SL = isRelaxed ? 1.0 : 1.2;
   const ok_SL  = Fs_SL >= req_SL;
 
   // Bearing capacity
   const x_R_from_heel = sumV > 1e-9 ? (sumMr - sumMo) / sumV : B / 2;
   const e      = B / 2 - x_R_from_heel;   // positive → resultant toward land side (heel)
-  const e_lim  = isSeismic ? B / 4 : B / 6;
+  const e_lim  = isRelaxed ? B / 4 : B / 6;
   const q_max  = sumV > 0 ? (sumV / B) * (1 + 6 * e / B) : 0;
   const q_min  = sumV > 0 ? (sumV / B) * (1 - 6 * e / B) : 0;
-  const qa_lim = isSeismic ? qa * 1.5 : qa;
+  const qa_lim = isRelaxed ? qa * 1.5 : qa;
   const ok_e   = Math.abs(e) <= e_lim;
   const ok_q   = q_max <= qa_lim;
   const ok_BC  = ok_e && ok_q;
@@ -413,7 +432,7 @@ function calculate() {
   const ul1 = calcUplift(hw, B, gw, useUplift);
   const res1 = checkStability(B, mu, qa, wall.W, wall.xc, wall.zc,
     wp1.Pwh, wp1.y_Pw, wp1.Pwv, wp1.x_Pwv,
-    ul1.U, ul1.xu, ep.Pah, ep.Pav, ep.y_Pa, ep.x_Pa, 0, false);
+    ul1.U, ul1.xu, ep.Pah, ep.Pav, ep.y_Pa, ep.x_Pa, 0, 0, false);
 
   // ---- CASE 2: 地震時 ----
   const wp2 = calcWaterPressure(hw_eq, gw, n1);
@@ -421,11 +440,19 @@ function calculate() {
   const Feq  = kh * wall.W;
   const res2 = checkStability(B, mu, qa, wall.W, wall.xc, wall.zc,
     wp2.Pwh, wp2.y_Pw, wp2.Pwv, wp2.x_Pwv,
-    ul2.U, ul2.xu, ep.Pah, ep.Pav, ep.y_Pa, ep.x_Pa, Feq, true);
+    ul2.U, ul2.xu, ep.Pah, ep.Pav, ep.y_Pa, ep.x_Pa, Feq, wall.zc, true);
+
+  // ---- CASE 3: 衝突時 ----
+  const useCol = document.getElementById('use_col').checked;
+  const P_col  = useCol ? +document.getElementById('p_col').value : 0;
+  const y_col  = useCol ? +document.getElementById('y_col').value : 0;
+  const res3 = useCol ? checkStability(B, mu, qa, wall.W, wall.xc, wall.zc,
+    wp1.Pwh, wp1.y_Pw, wp1.Pwv, wp1.x_Pwv,
+    ul1.U, ul1.xu, ep.Pah, ep.Pav, ep.y_Pa, ep.x_Pa, P_col, y_col, true) : null;
 
   // ---- RENDER ----
   drawDiagram(H, B, a, n1, wall.n2, hw, gw, useUplift,
-    wp1, ul1, ep, wall.W, wall.xc, wall.zc, res1, useEP);
+    wp1, ul1, ep, wall.W, wall.xc, wall.zc, res1, useEP, useCol ? P_col : 0, useCol ? y_col : 0);
 
   document.getElementById('no-result').classList.add('hidden');
   document.getElementById('results').classList.remove('hidden');
@@ -433,30 +460,43 @@ function calculate() {
   document.getElementById('stab-normal').innerHTML  = stabCards(res1, false);
   document.getElementById('stab-seismic').innerHTML = stabCards(res2, true);
 
+  // Case 3: 衝突時
+  const colWrap = document.getElementById('stab-collision-wrap');
+  if (useCol && res3) {
+    colWrap.classList.remove('hidden');
+    document.getElementById('stab-collision').innerHTML = stabCards(res3, true);
+  } else {
+    colWrap.classList.add('hidden');
+  }
+
   // Ground pressure table
+  const colCols = (useCol && res3) ? `<th colspan="2">衝突時</th>` : '';
+  const colR = (r, limE, limQa) => useCol && res3 ? `
+    <td class="r">${f(r)} m</td><td></td>` : '';
   document.getElementById('ground-table').innerHTML = `
     <table class="rt" style="margin-top:10px">
-      <tr><th>地盤反力項目</th><th colspan="2">常時</th><th colspan="2">地震時</th></tr>
+      <tr><th>地盤反力項目</th><th colspan="2">常時</th><th colspan="2">地震時</th>${colCols}</tr>
       <tr>
         <td>川裏趾より合力作用点 x_R</td>
-        <td class="r">${f(res1.x_R_from_heel)} m</td>
-        <td></td>
-        <td class="r">${f(res2.x_R_from_heel)} m</td>
-        <td></td>
+        <td class="r">${f(res1.x_R_from_heel)} m</td><td></td>
+        <td class="r">${f(res2.x_R_from_heel)} m</td><td></td>
+        ${useCol && res3 ? `<td class="r">${f(res3.x_R_from_heel)} m</td><td></td>` : ''}
       </tr>
       <tr>
         <td>偏心量 |e|</td>
         <td class="r">${f(Math.abs(res1.e))} m</td>
-        <td><span class="badge ${res1.ok_e ? 'pass' : 'fail'}">${res1.ok_e ? 'OK' : 'NG'}</span> ≤ B/6 = ${f(B/6)} m</td>
+        <td><span class="badge ${res1.ok_e ? 'pass' : 'fail'}">${res1.ok_e ? 'OK' : 'NG'}</span> ≤ B/6</td>
         <td class="r">${f(Math.abs(res2.e))} m</td>
-        <td><span class="badge ${res2.ok_e ? 'pass' : 'fail'}">${res2.ok_e ? 'OK' : 'NG'}</span> ≤ B/4 = ${f(B/4)} m</td>
+        <td><span class="badge ${res2.ok_e ? 'pass' : 'fail'}">${res2.ok_e ? 'OK' : 'NG'}</span> ≤ B/4</td>
+        ${useCol && res3 ? `<td class="r">${f(Math.abs(res3.e))} m</td><td><span class="badge ${res3.ok_e ? 'pass' : 'fail'}">${res3.ok_e ? 'OK' : 'NG'}</span> ≤ B/4</td>` : ''}
       </tr>
       <tr>
         <td>最大地盤反力 qmax（川裏側）</td>
         <td class="r">${f(res1.q_max, 1)} kN/m²</td>
-        <td><span class="badge ${res1.ok_q ? 'pass' : 'fail'}">${res1.ok_q ? 'OK' : 'NG'}</span> ≤ ${qa} kN/m²</td>
+        <td><span class="badge ${res1.ok_q ? 'pass' : 'fail'}">${res1.ok_q ? 'OK' : 'NG'}</span> ≤ ${qa}</td>
         <td class="r">${f(res2.q_max, 1)} kN/m²</td>
-        <td><span class="badge ${res2.ok_q ? 'pass' : 'fail'}">${res2.ok_q ? 'OK' : 'NG'}</span> ≤ ${(qa*1.5).toFixed(0)} kN/m²</td>
+        <td><span class="badge ${res2.ok_q ? 'pass' : 'fail'}">${res2.ok_q ? 'OK' : 'NG'}</span> ≤ ${(qa*1.5).toFixed(0)}</td>
+        ${useCol && res3 ? `<td class="r">${f(res3.q_max, 1)} kN/m²</td><td><span class="badge ${res3.ok_q ? 'pass' : 'fail'}">${res3.ok_q ? 'OK' : 'NG'}</span> ≤ ${(qa*1.5).toFixed(0)}</td>` : ''}
       </tr>
       <tr>
         <td>最小地盤反力 qmin（川表側）</td>
@@ -464,6 +504,7 @@ function calculate() {
         <td><span class="badge ${res1.q_min >= 0 ? 'pass' : 'fail'}">${res1.q_min >= 0 ? 'OK' : 'NG'}</span> ≥ 0</td>
         <td class="r">${f(res2.q_min, 1)} kN/m²</td>
         <td><span class="badge ${res2.q_min >= 0 ? 'pass' : 'fail'}">${res2.q_min >= 0 ? 'OK' : 'NG'}</span> ≥ 0</td>
+        ${useCol && res3 ? `<td class="r">${f(res3.q_min, 1)} kN/m²</td><td><span class="badge ${res3.q_min >= 0 ? 'pass' : 'fail'}">${res3.q_min >= 0 ? 'OK' : 'NG'}</span> ≥ 0</td>` : ''}
       </tr>
     </table>`;
 
@@ -557,7 +598,7 @@ function calculate() {
 }
 
 // ===== SVG DIAGRAM =====
-function drawDiagram(H, B, a, n1, n2, hw, gw, useUplift, wp, ul, ep, W, xc_W, zc_W, res, useEP) {
+function drawDiagram(H, B, a, n1, n2, hw, gw, useUplift, wp, ul, ep, W, xc_W, zc_W, res, useEP, P_col, y_col) {
   const svg  = document.getElementById('diagram');
   const VW   = 680, VH = 300;
   const ml   = 60, mr = 110, mt = 30, mb = 60;
@@ -590,6 +631,7 @@ function drawDiagram(H, B, a, n1, n2, hw, gw, useUplift, wp, ul, ep, W, xc_W, zc
     <marker id="ab2" markerWidth="7" markerHeight="7" refX="1" refY="3.5" orient="auto"><path d="M7,0 L7,7 L0,3.5 z" fill="#2471a3"/></marker>
     <marker id="abl" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#1a86c8"/></marker>
     <marker id="ao"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#e67e22"/></marker>
+    <marker id="apu" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#7d3c98"/></marker>
     <pattern id="hatch" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)">
       <line x1="0" y1="0" x2="0" y2="7" stroke="#777" stroke-width="0.8"/>
     </pattern>
@@ -699,6 +741,20 @@ function drawDiagram(H, B, a, n1, n2, hw, gw, useUplift, wp, ul, ep, W, xc_W, zc
   s += `<line x1="${tx(0)}" y1="${dimY}" x2="${tx(B)}" y2="${dimY}" stroke="#2471a3" stroke-width="1" marker-end="url(#ab)" marker-start="url(#ab2)"/>`;
   s += `<text x="${tx(B/2)}" y="${dimY-4}" font-size="11" fill="#1a5276" text-anchor="middle">B = ${B} m</text>`;
 
+  // Collision force P_col (purple, horizontal → toward land side, from river face)
+  if (P_col > 0.01) {
+    const cLen = refPx * (P_col / wRef);
+    const cy   = ty(Math.min(y_col, H));
+    const cx2  = tx(0);  // acts on river face
+    const cx1  = cx2 - Math.min(cLen, B * sc * 0.7);
+    s += `<line x1="${cx1}" y1="${cy}" x2="${cx2}" y2="${cy}"
+           stroke="#7d3c98" stroke-width="2.5" stroke-dasharray="6,3" marker-end="url(#apu)"/>`;
+    s += `<text x="${cx1 - 4}" y="${cy - 5}" text-anchor="end" font-size="11" fill="#6c3483">P_col=${P_col.toFixed(0)} kN/m</text>`;
+    // 作用高の水平補助線
+    s += `<line x1="${tx(0)}" y1="${cy}" x2="${tx(B)}" y2="${cy}" stroke="#7d3c98" stroke-width="0.6" stroke-dasharray="3,3" opacity="0.5"/>`;
+    s += `<text x="${tx(B)+4}" y="${cy+4}" font-size="10" fill="#6c3483">y=${y_col}m</text>`;
+  }
+
   // Labels
   s += `<text x="${tx(n1*H+a/2)}" y="${ty(H*0.45)}" text-anchor="middle" font-size="12" fill="#37474f" font-weight="bold">パラペット</text>`;
   s += `<text x="${tx(-B*0.2)}" y="${ty(H*0.4)}" text-anchor="middle" font-size="10" fill="#1a5276">川表側</text>`;
@@ -790,6 +846,7 @@ function printReport() {
 // Auto-calculate on load
 window.addEventListener('load', () => {
   toggleEP();
+  toggleCol();
   calculate();
   // デフォルトで今日の日付をセット
   document.getElementById('pi_date').value = new Date().toISOString().slice(0, 10);
