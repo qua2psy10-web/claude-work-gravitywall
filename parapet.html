@@ -70,6 +70,57 @@
 
     .formula-note { background: #f0f4f8; border-radius: 5px; padding: 9px 12px; font-size: 11px; color: #666; line-height: 1.7; margin-top: 10px; }
     .section-title { font-size: 13px; font-weight: bold; color: #1a4a6c; margin: 14px 0 8px; border-bottom: 1px solid #dde4ea; padding-bottom: 4px; }
+
+    .btn-print { width: 100%; padding: 9px; background: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; margin-top: 10px; letter-spacing: 0.5px; transition: background 0.2s; }
+    .btn-print:hover { background: #388e3c; }
+
+    /* ===== PRINT STYLES ===== */
+    @media print {
+      @page { size: A4 portrait; margin: 15mm 15mm 20mm 20mm; }
+
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+      body { background: white; font-size: 10pt; color: #000; }
+      header, .container > div:first-child, #no-result, .btn, .btn-print, .nav-link { display: none !important; }
+
+      .container { display: block; padding: 0; max-width: 100%; }
+      .container > div:last-child { display: block; }
+
+      .card { box-shadow: none; border: 1px solid #ccc; border-radius: 0; margin-bottom: 0; page-break-inside: avoid; padding: 10px 12px; }
+      .card h2 { font-size: 11pt; }
+
+      .result-grid { grid-template-columns: repeat(3, 1fr); }
+      .case-grid   { grid-template-columns: 1fr 1fr; }
+
+      .stab-card { border-left-width: 4px; padding: 6px 8px; }
+      .stab-card .stab-fs { font-size: 16pt; }
+
+      table.rt th, table.rt td { font-size: 9pt; padding: 3px 6px; }
+
+      .formula-note { font-size: 8.5pt; }
+      .section-title { font-size: 10pt; }
+
+      /* Report-only blocks */
+      .print-only { display: block !important; }
+      .print-page-break { page-break-before: always; }
+
+      /* Report header on each page via fixed header */
+      .rpt-header { border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 12px; }
+      .rpt-title  { font-size: 16pt; font-weight: bold; text-align: center; margin-bottom: 4px; }
+      .rpt-meta   { display: flex; gap: 20px; font-size: 9pt; justify-content: flex-end; }
+      .rpt-meta span { border-bottom: 1px solid #999; min-width: 80px; display: inline-block; }
+
+      .rpt-input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
+      .rpt-input-grid table { width: 100%; }
+
+      #diagram-wrap { background: white; border: none; padding: 0; }
+      #diagram { width: 100%; height: auto; }
+    }
+
+    /* Screen-only: hide print-only blocks */
+    @media screen {
+      .print-only { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -122,6 +173,17 @@
 
       <button class="btn" onclick="calculate()">計　算　実　行</button>
     </div>
+
+    <div class="card">
+      <h2>計算書情報</h2>
+      <div class="fg"><label>工事名</label><input id="pi_project" type="text" style="width:180px;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px" placeholder="〇〇河川改修工事"></div>
+      <div class="fg"><label>箇所名</label><input id="pi_location" type="text" style="width:180px;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px" placeholder="第〇号特殊堤 STA.〇+〇〇〇"></div>
+      <div class="fg"><label>図　番</label><input id="pi_drawno"   type="text" style="width:120px;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px" placeholder="構-〇〇〇"></div>
+      <div class="fg"><label>設計者</label><input id="pi_designer" type="text" style="width:100px;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px"></div>
+      <div class="fg"><label>確認者</label><input id="pi_checker"  type="text" style="width:100px;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px"></div>
+      <div class="fg"><label>作成日</label><input id="pi_date"     type="date"  style="width:140px;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px"></div>
+      <button class="btn-print" onclick="printReport()">📄　計算書 PDF 出力</button>
+    </div>
   </div>
 
   <!-- ===== RIGHT: RESULTS ===== -->
@@ -131,6 +193,23 @@
       <div id="diagram-wrap">
         <svg id="diagram" width="100%" height="300" viewBox="0 0 680 300" preserveAspectRatio="xMidYMid meet"></svg>
       </div>
+    </div>
+
+    <!-- 印刷時のみ表示：計算書表紙ブロック -->
+    <div class="print-only" id="rpt-cover">
+      <div class="rpt-header">
+        <div class="rpt-title" id="rpt-title-text">重力式擁壁型パラペット　安定計算書</div>
+        <div style="text-align:center;font-size:10pt;margin-bottom:6px">河川砂防技術基準（案）設計編 準拠</div>
+        <div class="rpt-meta">
+          <div>工事名：<span id="rpt-project"></span></div>
+          <div>箇所名：<span id="rpt-location"></span></div>
+          <div>図番：<span id="rpt-drawno"></span></div>
+          <div>設計：<span id="rpt-designer"></span></div>
+          <div>確認：<span id="rpt-checker"></span></div>
+          <div>作成日：<span id="rpt-date"></span></div>
+        </div>
+      </div>
+      <div id="rpt-input-section"></div>
     </div>
 
     <div id="no-result" class="card">計算実行ボタンを押すと結果が表示されます</div>
@@ -628,10 +707,92 @@ function drawDiagram(H, B, a, n1, n2, hw, gw, useUplift, wp, ul, ep, W, xc_W, zc
   svg.innerHTML = s;
 }
 
+// ===== PRINT / PDF =====
+function printReport() {
+  // 計算を最新にしておく
+  calculate();
+
+  // 計算書情報を印刷用要素に転写
+  const g = id => document.getElementById(id);
+  g('rpt-project').textContent  = g('pi_project').value  || '（未記入）';
+  g('rpt-location').textContent = g('pi_location').value || '（未記入）';
+  g('rpt-drawno').textContent   = g('pi_drawno').value   || '-';
+  g('rpt-designer').textContent = g('pi_designer').value || '-';
+  g('rpt-checker').textContent  = g('pi_checker').value  || '-';
+  g('rpt-date').textContent     = g('pi_date').value     || new Date().toLocaleDateString('ja-JP');
+
+  // 入力条件一覧表（印刷用）
+  const useEP     = g('use_ep').checked;
+  const useUplift = g('use_uplift').checked;
+  const H  = g('H').value, B = g('B').value, a = g('a_top').value;
+  const n1 = g('n1').value;
+  const n2 = Math.max((+B - +a) / +H - +n1, 0).toFixed(3);
+  const gc = g('gamma_c').value, gw = g('gamma_w').value;
+  const hw = g('hw').value, hw_eq = g('hw_eq').value;
+  const mu = g('mu').value, qa = g('qa').value, kh = g('kh').value;
+  const gs = g('gamma_s').value, phi = g('phi').value;
+  const delta = g('delta').value, beta = g('beta').value;
+  const hs = g('hs').value, q = g('q').value;
+
+  g('rpt-input-section').innerHTML = `
+    <div style="font-weight:bold;font-size:11pt;border-bottom:1px solid #000;margin:10px 0 6px;padding-bottom:3px">１．設計条件</div>
+    <div class="rpt-input-grid">
+      <table class="rt">
+        <tr><th colspan="3" style="background:#e8f0f8;text-align:center">壁体形状・材料</th></tr>
+        <tr><td>壁高 H</td><td class="r">${H}</td><td>m</td></tr>
+        <tr><td>底版幅 B</td><td class="r">${B}</td><td>m</td></tr>
+        <tr><td>天端幅 a</td><td class="r">${a}</td><td>m</td></tr>
+        <tr><td>川表面勾配 n₁</td><td class="r">${n1}</td><td>-</td></tr>
+        <tr><td>川裏面勾配 n₂（算出）</td><td class="r">${n2}</td><td>-</td></tr>
+        <tr><td>コンクリート単位重量 γc</td><td class="r">${gc}</td><td>kN/m³</td></tr>
+        <tr><td>水の単位重量 γw</td><td class="r">${gw}</td><td>kN/m³</td></tr>
+        <tr><th colspan="3" style="background:#e8f0f8;text-align:center;margin-top:4px">水理・地盤条件</th></tr>
+        <tr><td>計画高水位 hw</td><td class="r">${hw}</td><td>m（壁底面より）</td></tr>
+        <tr><td>地震時水位 hw_eq</td><td class="r">${hw_eq}</td><td>m</td></tr>
+        <tr><td>底面摩擦係数 μ</td><td class="r">${mu}</td><td>-</td></tr>
+        <tr><td>許容支持力 qa</td><td class="r">${qa}</td><td>kN/m²</td></tr>
+        <tr><td>水平震度 kh</td><td class="r">${kh}</td><td>-</td></tr>
+        <tr><td>揚圧力考慮</td><td class="r">${useUplift ? '考慮する' : '考慮しない'}</td><td></td></tr>
+      </table>
+      <table class="rt">
+        <tr><th colspan="3" style="background:#e8f0f8;text-align:center">川裏土圧条件</th></tr>
+        ${useEP ? `
+        <tr><td>川裏土圧</td><td class="r">考慮する</td><td></td></tr>
+        <tr><td>盛土単位重量 γs</td><td class="r">${gs}</td><td>kN/m³</td></tr>
+        <tr><td>内部摩擦角 φ</td><td class="r">${phi}</td><td>度</td></tr>
+        <tr><td>壁摩擦角 δ</td><td class="r">${delta}</td><td>度</td></tr>
+        <tr><td>盛土のり面角 β</td><td class="r">${beta}</td><td>度</td></tr>
+        <tr><td>川裏盛土高 hs</td><td class="r">${hs}</td><td>m</td></tr>
+        <tr><td>上載荷重 q</td><td class="r">${q}</td><td>kN/m²</td></tr>
+        ` : '<tr><td colspan="3" style="color:#888">川裏土圧：考慮しない</td></tr>'}
+        <tr><th colspan="3" style="background:#e8f0f8;text-align:center">安全率規定値</th></tr>
+        <tr><td>転倒（常時）</td><td class="r">≥ 1.50</td><td></td></tr>
+        <tr><td>滑動（常時）</td><td class="r">≥ 1.20</td><td></td></tr>
+        <tr><td>転倒（地震時）</td><td class="r">≥ 1.10</td><td></td></tr>
+        <tr><td>滑動（地震時）</td><td class="r">≥ 1.00</td><td></td></tr>
+        <tr><td>偏心（常時）</td><td class="r">e ≤ B/6</td><td></td></tr>
+        <tr><td>偏心（地震時）</td><td class="r">e ≤ B/4</td><td></td></tr>
+      </table>
+    </div>`;
+
+  // 断面図の前に改ページ挿入用クラスを付与
+  const diagramCard = document.querySelector('#diagram-wrap').closest('.card');
+  if (diagramCard) diagramCard.classList.add('print-page-break');
+
+  window.print();
+
+  // 印刷後にクラスを戻す
+  setTimeout(() => {
+    if (diagramCard) diagramCard.classList.remove('print-page-break');
+  }, 1000);
+}
+
 // Auto-calculate on load
 window.addEventListener('load', () => {
   toggleEP();
   calculate();
+  // デフォルトで今日の日付をセット
+  document.getElementById('pi_date').value = new Date().toISOString().slice(0, 10);
 });
 </script>
 </body>
