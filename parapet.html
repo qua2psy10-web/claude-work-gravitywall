@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>河川特殊堤パラペット 安定計算</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Noto Sans JP', 'Meiryo', sans-serif; background: #eef2f7; color: #333; font-size: 14px; }
+
+    header { background: #1a4a6c; color: white; padding: 14px 24px; display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+    header h1 { font-size: 18px; font-weight: bold; }
+    header p  { font-size: 12px; color: #9bc; }
+    header .nav-link { margin-left: auto; font-size: 12px; }
+    header .nav-link a { color: #9bc; text-decoration: none; border: 1px solid #9bc; border-radius: 4px; padding: 3px 10px; }
+    header .nav-link a:hover { background: rgba(255,255,255,0.15); }
+
+    .container { max-width: 1320px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: 380px 1fr; gap: 16px; }
+
+    .card { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.12); margin-bottom: 12px; }
+    .card:last-child { margin-bottom: 0; }
+    .card h2 { font-size: 13px; font-weight: bold; color: #1a4a6c; border-bottom: 2px solid #1a4a6c; padding-bottom: 5px; margin-bottom: 12px; letter-spacing: 0.5px; }
+
+    .sec-label { font-size: 11px; font-weight: bold; color: #7a8fa8; text-transform: uppercase; letter-spacing: 0.8px; margin: 12px 0 6px; }
+    .sec-label:first-of-type { margin-top: 0; }
+
+    .fg { display: flex; align-items: center; margin-bottom: 7px; gap: 6px; }
+    .fg label { width: 160px; font-size: 12px; flex-shrink: 0; color: #444; }
+    .fg input[type=number] { width: 76px; padding: 4px 7px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; text-align: right; transition: border-color 0.2s; }
+    .fg input[type=number]:focus { outline: none; border-color: #1a4a6c; }
+    .fg input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
+    .fg .unit { width: 52px; font-size: 11px; color: #888; }
+    .fg .note { font-size: 11px; color: #aaa; }
+    .fg-check { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; font-size: 12px; color: #444; cursor: pointer; }
+    .fg-check input { cursor: pointer; }
+    .sub-inputs { padding-left: 12px; border-left: 3px solid #e0e8f0; margin-bottom: 4px; }
+
+    .btn { width: 100%; padding: 11px; background: #1a4a6c; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; margin-top: 14px; letter-spacing: 1px; transition: background 0.2s; }
+    .btn:hover { background: #2a6090; }
+
+    .result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+    .case-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px; }
+    .case-label { font-size: 13px; font-weight: bold; color: #555; margin-bottom: 8px; padding: 5px 10px; border-radius: 4px; }
+    .case-label.normal  { background: #e8f4fd; color: #1a4a6c; }
+    .case-label.seismic { background: #fef9e7; color: #7d6608; }
+
+    .stab-card { border-radius: 7px; padding: 10px 12px; border-left: 5px solid #ccc; background: #fafafa; }
+    .stab-card.pass { border-left-color: #2ecc71; background: #f0fff4; }
+    .stab-card.fail { border-left-color: #e74c3c; background: #fff5f5; }
+    .stab-card .stab-title { font-size: 11px; font-weight: bold; color: #555; margin-bottom: 4px; }
+    .stab-card .stab-fs   { font-size: 22px; font-weight: bold; line-height: 1; }
+    .stab-card.pass .stab-fs { color: #27ae60; }
+    .stab-card.fail .stab-fs { color: #c0392b; }
+    .stab-card .stab-req  { font-size: 10px; color: #888; margin-top: 2px; }
+    .stab-card .stab-detail { font-size: 11px; color: #666; margin-top: 5px; line-height: 1.5; }
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: bold; margin-top: 5px; }
+    .badge.pass { background: #d4edda; color: #155724; }
+    .badge.fail { background: #f8d7da; color: #721c24; }
+
+    table.rt { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.rt th { background: #f0f4f8; padding: 5px 8px; text-align: left; border: 1px solid #e0e5ea; color: #555; font-weight: normal; }
+    table.rt td { padding: 5px 8px; border: 1px solid #e0e5ea; }
+    table.rt td.r { text-align: right; font-family: 'Courier New', monospace; }
+    table.rt tr.hl  { background: #fffbea; }
+    table.rt tr.hl2 { background: #ebf5fb; }
+
+    #diagram-wrap { background: #f4f7fb; border-radius: 6px; padding: 8px; }
+    #no-result { color: #aaa; text-align: center; padding: 40px 0; font-size: 13px; }
+    .hidden { display: none; }
+
+    .formula-note { background: #f0f4f8; border-radius: 5px; padding: 9px 12px; font-size: 11px; color: #666; line-height: 1.7; margin-top: 10px; }
+    .section-title { font-size: 13px; font-weight: bold; color: #1a4a6c; margin: 14px 0 8px; border-bottom: 1px solid #dde4ea; padding-bottom: 4px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>重力式擁壁型パラペット　安定計算</h1>
+  <p>河川砂防技術基準（案）設計編 準拠</p>
+  <div class="nav-link"><a href="index.html">重力式擁壁計算へ →</a></div>
+</header>
+
+<div class="container">
+  <!-- ===== LEFT: INPUTS ===== -->
+  <div>
+    <div class="card">
+      <h2>入力条件</h2>
+
+      <div class="sec-label">壁体形状</div>
+      <div class="fg"><label>壁高 H</label><input id="H" type="number" value="3.0" min="0.5" step="0.1"><span class="unit">m</span></div>
+      <div class="fg"><label>底版幅 B</label><input id="B" type="number" value="2.4" min="0.5" step="0.1"><span class="unit">m</span></div>
+      <div class="fg"><label>天端幅 a</label><input id="a_top" type="number" value="0.6" min="0.2" step="0.1"><span class="unit">m</span></div>
+      <div class="fg"><label>川表面勾配 n₁</label><input id="n1" type="number" value="0.05" min="0" step="0.01"><span class="unit">-</span><span class="note">水平/鉛直</span></div>
+
+      <div class="sec-label">材料定数</div>
+      <div class="fg"><label>コンクリート単位重量 γc</label><input id="gamma_c" type="number" value="23.0" step="0.5"><span class="unit">kN/m³</span></div>
+      <div class="fg"><label>水の単位重量 γw</label><input id="gamma_w" type="number" value="9.8" step="0.1"><span class="unit">kN/m³</span></div>
+
+      <div class="sec-label">水理条件</div>
+      <div class="fg"><label>計画高水位（壁底面から）hw</label><input id="hw" type="number" value="2.8" min="0" step="0.1"><span class="unit">m</span></div>
+      <div class="fg"><label>地震時水位 hw_eq</label><input id="hw_eq" type="number" value="0.0" min="0" step="0.1"><span class="unit">m</span></div>
+
+      <div class="sec-label">川裏土圧</div>
+      <label class="fg-check"><input type="checkbox" id="use_ep" checked onchange="toggleEP()"> 川裏盛土の土圧を考慮する</label>
+      <div id="ep_inputs" class="sub-inputs">
+        <div class="fg"><label>盛土単位重量 γs</label><input id="gamma_s" type="number" value="18.0" step="0.5"><span class="unit">kN/m³</span></div>
+        <div class="fg"><label>内部摩擦角 φ</label><input id="phi" type="number" value="30" min="10" max="45" step="1"><span class="unit">度</span></div>
+        <div class="fg"><label>壁摩擦角 δ</label><input id="delta" type="number" value="15" min="0" max="30" step="1"><span class="unit">度</span><span class="note">推奨：φ/2</span></div>
+        <div class="fg"><label>盛土のり面角 β</label><input id="beta" type="number" value="0" min="0" max="30" step="1"><span class="unit">度</span></div>
+        <div class="fg"><label>川裏盛土高 hs</label><input id="hs" type="number" value="3.0" min="0" step="0.1"><span class="unit">m</span><span class="note">≤H</span></div>
+        <div class="fg"><label>上載荷重 q</label><input id="q" type="number" value="0" min="0" step="1"><span class="unit">kN/m²</span></div>
+      </div>
+
+      <div class="sec-label">揚圧力</div>
+      <label class="fg-check"><input type="checkbox" id="use_uplift" checked> 底面揚圧力（浸透水圧）を考慮する</label>
+
+      <div class="sec-label">地盤条件</div>
+      <div class="fg"><label>底面摩擦係数 μ</label><input id="mu" type="number" value="0.5" min="0.1" max="1.0" step="0.05"><span class="unit">-</span></div>
+      <div class="fg"><label>許容支持力 qa</label><input id="qa" type="number" value="200" min="50" step="10"><span class="unit">kN/m²</span></div>
+
+      <div class="sec-label">地震条件</div>
+      <div class="fg"><label>水平震度 kh</label><input id="kh" type="number" value="0.15" min="0" max="0.5" step="0.01"><span class="unit">-</span></div>
+
+      <button class="btn" onclick="calculate()">計　算　実　行</button>
+    </div>
+  </div>
+
+  <!-- ===== RIGHT: RESULTS ===== -->
+  <div>
+    <div class="card">
+      <h2>断面図・荷重図</h2>
+      <div id="diagram-wrap">
+        <svg id="diagram" width="100%" height="300" viewBox="0 0 680 300" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+    </div>
+
+    <div id="no-result" class="card">計算実行ボタンを押すと結果が表示されます</div>
+
+    <div id="results" class="hidden">
+      <div class="card">
+        <h2>安定照査結果</h2>
+        <div class="case-grid">
+          <div>
+            <div class="case-label normal">① 常時（計画高水位時）</div>
+            <div class="result-grid" id="stab-normal"></div>
+          </div>
+          <div>
+            <div class="case-label seismic">② 地震時</div>
+            <div class="result-grid" id="stab-seismic"></div>
+          </div>
+        </div>
+        <div id="ground-table"></div>
+      </div>
+
+      <div class="card">
+        <h2>作用力・モーメント集計（川裏趾まわり）</h2>
+        <div id="forces-table"></div>
+      </div>
+
+      <div class="card">
+        <h2>各荷重計算</h2>
+        <div id="load-table"></div>
+        <div class="formula-note">
+          【水圧】Pwh = ½·γw·hw²　作用高 = hw/3（底面より）<br>
+          【揚圧力】U = ½·γw·hw·B　川表趾側最大（三角形分布）, 作用点 = B/3（川表趾より）<br>
+          【川裏土圧】クーロン式 Ka, Pa = ½Ka·γs·hs² + Ka·q·hs　作用方向：川裏→川表（-x）<br>
+          【転倒照査基点】川裏趾（x=B）　【安全率】常時：転倒≥1.5, 滑動≥1.2　地震時：転倒≥1.1, 滑動≥1.0
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const RAD = Math.PI / 180;
+const f = (v, d = 3) => (+v).toFixed(d);
+
+function toggleEP() {
+  document.getElementById('ep_inputs').style.display =
+    document.getElementById('use_ep').checked ? '' : 'none';
+}
+
+function calcWall(H, B, a, n1, gc) {
+  const n2 = Math.max((B - a) / H - n1, 0);
+  const A_r  = a * H;
+  const xc_r = n1 * H + a / 2;
+  const A_f  = 0.5 * n1 * H * H;
+  const xc_f = n1 > 1e-9 ? 2 * n1 * H / 3 : 0;
+  const A_b  = 0.5 * n2 * H * H;
+  const xc_b = n2 > 1e-9 ? (2 * (n1 * H + a) + B) / 3 : (n1 * H + a);
+  const A_wall = A_r + A_f + A_b;
+  const xc = (A_r * xc_r + A_f * xc_f + A_b * xc_b) / A_wall;
+  const zc = (A_r * (H / 2) + A_f * (H / 3) + A_b * (H / 3)) / A_wall;
+  return { W: gc * A_wall, xc, zc, n2, A_wall };
+}
+
+function calcWaterPressure(hw, gw, n1) {
+  if (hw <= 0) return { Pwh: 0, y_Pw: 0, Pwv: 0, x_Pwv: 0 };
+  const Pwh  = 0.5 * gw * hw * hw;
+  const y_Pw = hw / 3;
+  const Pwv  = gw * 0.5 * n1 * hw * hw;   // upward, on inclined river face
+  const x_Pwv = n1 * hw / 3;              // from river toe
+  return { Pwh, y_Pw, Pwv, x_Pwv };
+}
+
+function calcUplift(hw, B, gw, useUplift) {
+  if (!useUplift || hw <= 0) return { U: 0, xu: B / 3 };
+  return { U: 0.5 * gw * hw * B, xu: B / 3 };
+}
+
+function calcEarthPressure(H, B, a, n1, gs, phi, delta, beta, hs, q, useEP) {
+  if (!useEP || hs <= 0) return { Pah: 0, Pav: 0, y_Pa: 0, x_Pa: B, Pa: 0, Ka: 0, Pa_w: 0, Pa_q: 0, n2: Math.max((B - a) / H - n1, 0) };
+  const n2  = Math.max((B - a) / H - n1, 0);
+  const psi = Math.atan(n2);
+  const alpha = Math.PI / 2 - psi;
+  const A   = Math.sin(phi + alpha);
+  const C   = Math.sin(alpha - delta);
+  const D   = Math.sin(alpha + beta);
+  const inner = Math.sin(phi + delta) * Math.sin(phi - beta) / (C * D);
+  if (inner < 0) return { Pah: 0, Pav: 0, y_Pa: 0, x_Pa: B, Pa: 0, Ka: 0, Pa_w: 0, Pa_q: 0, n2 };
+  const Ka   = (A * A) / (Math.sin(alpha) * Math.sin(alpha) * C * Math.pow(1 + Math.sqrt(inner), 2));
+  const Pa_w = 0.5 * Ka * gs * hs * hs;
+  const Pa_q = Ka * q * hs;
+  const Pa   = Pa_w + Pa_q;
+  const ang  = delta + psi;
+  const Pah  = Pa * Math.cos(ang);
+  const Pav  = Pa * Math.sin(ang);
+  const y_Pa = Pa > 1e-9 ? (Pa_w * hs / 3 + Pa_q * hs / 2) / Pa : 0;
+  const x_Pa = B - n2 * y_Pa;
+  return { Pah, Pav, y_Pa, x_Pa, Pa, Ka, Pa_w, Pa_q, n2, psi, alpha };
+}
+
+function checkStability(B, mu, qa, W, xc, zc, Pwh, y_Pw, Pwv, x_Pwv, U, xu, Pah, Pav, y_Pa, x_Pa, Feq, isSeismic) {
+  // All moments about LAND-SIDE HEEL (x=B)
+  // CW positive = overturning (river side lifts when water pushes toward land)
+  const Mr_W    = W * (B - xc);
+  const Mr_Pav  = Pav * (B - x_Pa);
+  const Mr_Pah  = Pah * y_Pa;
+  const sumMr   = Mr_W + Mr_Pav + Mr_Pah;
+
+  const Mo_Pw   = Pwh * y_Pw;
+  const Mo_Pwv  = Pwv * (B - x_Pwv);   // upward on inclined face → adds to overturning
+  const Mo_U    = U * (B - xu);         // uplift → adds to overturning
+  const Mo_Feq  = Feq * zc;
+  const sumMo   = Mo_Pw + Mo_Pwv + Mo_U + Mo_Feq;
+
+  const Fs_OT  = sumMo > 1e-9 ? sumMr / sumMo : 999;
+  const req_OT = isSeismic ? 1.1 : 1.5;
+  const ok_OT  = Fs_OT >= req_OT;
+
+  // Sliding: net vertical and horizontal
+  const sumV = W - Pwv - U + Pav;
+  const sumH = Math.max(Pwh + Feq - Pah, 0);
+  const Fs_SL  = sumH > 1e-9 ? mu * sumV / sumH : 999;
+  const req_SL = isSeismic ? 1.0 : 1.2;
+  const ok_SL  = Fs_SL >= req_SL;
+
+  // Bearing capacity
+  const x_R_from_heel = sumV > 1e-9 ? (sumMr - sumMo) / sumV : B / 2;
+  const e      = B / 2 - x_R_from_heel;   // positive → resultant toward land side (heel)
+  const e_lim  = isSeismic ? B / 4 : B / 6;
+  const q_max  = sumV > 0 ? (sumV / B) * (1 + 6 * e / B) : 0;
+  const q_min  = sumV > 0 ? (sumV / B) * (1 - 6 * e / B) : 0;
+  const qa_lim = isSeismic ? qa * 1.5 : qa;
+  const ok_e   = Math.abs(e) <= e_lim;
+  const ok_q   = q_max <= qa_lim;
+  const ok_BC  = ok_e && ok_q;
+
+  return { Fs_OT, req_OT, ok_OT, Fs_SL, req_SL, ok_SL, e, e_lim, q_max, q_min, qa_lim, ok_BC, ok_e, ok_q,
+           sumMr, sumMo, sumV, sumH, Mr_W, Mr_Pav, Mr_Pah, Mo_Pw, Mo_Pwv, Mo_U, Mo_Feq, x_R_from_heel };
+}
+
+function stabCards(res, isSeismic) {
+  const caseTag = isSeismic ? '地震時' : '常時';
+  return `
+    <div class="stab-card ${res.ok_OT ? 'pass' : 'fail'}">
+      <div class="stab-title">転倒安定</div>
+      <div class="stab-fs">${f(res.Fs_OT, 2)}</div>
+      <div class="stab-req">必要 ≥ ${res.req_OT.toFixed(1)}</div>
+      <div class="stab-detail">ΣMr = ${f(res.sumMr)} kN·m/m<br>ΣMo = ${f(res.sumMo)} kN·m/m</div>
+      <span class="badge ${res.ok_OT ? 'pass' : 'fail'}">${res.ok_OT ? 'OK' : 'NG'}</span>
+    </div>
+    <div class="stab-card ${res.ok_SL ? 'pass' : 'fail'}">
+      <div class="stab-title">滑動安定</div>
+      <div class="stab-fs">${f(res.Fs_SL, 2)}</div>
+      <div class="stab-req">必要 ≥ ${res.req_SL.toFixed(1)}</div>
+      <div class="stab-detail">μ·ΣV = ${f(res.sumV * +document.getElementById('mu').value)} kN/m<br>ΣH = ${f(res.sumH)} kN/m</div>
+      <span class="badge ${res.ok_SL ? 'pass' : 'fail'}">${res.ok_SL ? 'OK' : 'NG'}</span>
+    </div>
+    <div class="stab-card ${res.ok_BC ? 'pass' : 'fail'}">
+      <div class="stab-title">支持力</div>
+      <div class="stab-fs" style="font-size:17px">${f(res.q_max, 1)} kN/m²</div>
+      <div class="stab-req">許容 qa${isSeismic ? '×1.5' : ''} = ${res.qa_lim.toFixed(0)} kN/m²</div>
+      <div class="stab-detail">qmin = ${f(res.q_min, 1)} kN/m²<br>e = ${f(Math.abs(res.e))} m (≤${f(res.e_lim)} m)</div>
+      <span class="badge ${res.ok_BC ? 'pass' : 'fail'}">${res.ok_BC ? 'OK' : 'NG'}</span>
+    </div>`;
+}
+
+function calculate() {
+  const H   = +document.getElementById('H').value;
+  const B   = +document.getElementById('B').value;
+  const a   = +document.getElementById('a_top').value;
+  const n1  = +document.getElementById('n1').value;
+  const gc  = +document.getElementById('gamma_c').value;
+  const gw  = +document.getElementById('gamma_w').value;
+  const hw  = +document.getElementById('hw').value;
+  const hw_eq = +document.getElementById('hw_eq').value;
+  const useEP = document.getElementById('use_ep').checked;
+  const gs  = +document.getElementById('gamma_s').value;
+  const phi = +document.getElementById('phi').value * RAD;
+  const delta = +document.getElementById('delta').value * RAD;
+  const beta  = +document.getElementById('beta').value * RAD;
+  const hs  = +document.getElementById('hs').value;
+  const q   = +document.getElementById('q').value;
+  const useUplift = document.getElementById('use_uplift').checked;
+  const mu  = +document.getElementById('mu').value;
+  const qa  = +document.getElementById('qa').value;
+  const kh  = +document.getElementById('kh').value;
+
+  // Geometry validation
+  const n2 = (B - a) / H - n1;
+  if (n2 < -1e-9) {
+    alert('形状エラー: (B−a)/H < n₁ です。底版幅 B を大きくするか、天端幅 a または川表面勾配 n₁ を小さくしてください。');
+    return;
+  }
+
+  // Wall
+  const wall = calcWall(H, B, a, n1, gc);
+
+  // Earth pressure
+  const ep = calcEarthPressure(H, B, a, n1, gs, phi, delta, beta, hs, q, useEP);
+
+  // ---- CASE 1: 常時 ----
+  const wp1 = calcWaterPressure(hw, gw, n1);
+  const ul1 = calcUplift(hw, B, gw, useUplift);
+  const res1 = checkStability(B, mu, qa, wall.W, wall.xc, wall.zc,
+    wp1.Pwh, wp1.y_Pw, wp1.Pwv, wp1.x_Pwv,
+    ul1.U, ul1.xu, ep.Pah, ep.Pav, ep.y_Pa, ep.x_Pa, 0, false);
+
+  // ---- CASE 2: 地震時 ----
+  const wp2 = calcWaterPressure(hw_eq, gw, n1);
+  const ul2 = calcUplift(hw_eq, B, gw, useUplift);
+  const Feq  = kh * wall.W;
+  const res2 = checkStability(B, mu, qa, wall.W, wall.xc, wall.zc,
+    wp2.Pwh, wp2.y_Pw, wp2.Pwv, wp2.x_Pwv,
+    ul2.U, ul2.xu, ep.Pah, ep.Pav, ep.y_Pa, ep.x_Pa, Feq, true);
+
+  // ---- RENDER ----
+  drawDiagram(H, B, a, n1, wall.n2, hw, gw, useUplift,
+    wp1, ul1, ep, wall.W, wall.xc, wall.zc, res1, useEP);
+
+  document.getElementById('no-result').classList.add('hidden');
+  document.getElementById('results').classList.remove('hidden');
+
+  document.getElementById('stab-normal').innerHTML  = stabCards(res1, false);
+  document.getElementById('stab-seismic').innerHTML = stabCards(res2, true);
+
+  // Ground pressure table
+  document.getElementById('ground-table').innerHTML = `
+    <table class="rt" style="margin-top:10px">
+      <tr><th>地盤反力項目</th><th colspan="2">常時</th><th colspan="2">地震時</th></tr>
+      <tr>
+        <td>川裏趾より合力作用点 x_R</td>
+        <td class="r">${f(res1.x_R_from_heel)} m</td>
+        <td></td>
+        <td class="r">${f(res2.x_R_from_heel)} m</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>偏心量 |e|</td>
+        <td class="r">${f(Math.abs(res1.e))} m</td>
+        <td><span class="badge ${res1.ok_e ? 'pass' : 'fail'}">${res1.ok_e ? 'OK' : 'NG'}</span> ≤ B/6 = ${f(B/6)} m</td>
+        <td class="r">${f(Math.abs(res2.e))} m</td>
+        <td><span class="badge ${res2.ok_e ? 'pass' : 'fail'}">${res2.ok_e ? 'OK' : 'NG'}</span> ≤ B/4 = ${f(B/4)} m</td>
+      </tr>
+      <tr>
+        <td>最大地盤反力 qmax（川裏側）</td>
+        <td class="r">${f(res1.q_max, 1)} kN/m²</td>
+        <td><span class="badge ${res1.ok_q ? 'pass' : 'fail'}">${res1.ok_q ? 'OK' : 'NG'}</span> ≤ ${qa} kN/m²</td>
+        <td class="r">${f(res2.q_max, 1)} kN/m²</td>
+        <td><span class="badge ${res2.ok_q ? 'pass' : 'fail'}">${res2.ok_q ? 'OK' : 'NG'}</span> ≤ ${(qa*1.5).toFixed(0)} kN/m²</td>
+      </tr>
+      <tr>
+        <td>最小地盤反力 qmin（川表側）</td>
+        <td class="r">${f(res1.q_min, 1)} kN/m²</td>
+        <td><span class="badge ${res1.q_min >= 0 ? 'pass' : 'fail'}">${res1.q_min >= 0 ? 'OK' : 'NG'}</span> ≥ 0</td>
+        <td class="r">${f(res2.q_min, 1)} kN/m²</td>
+        <td><span class="badge ${res2.q_min >= 0 ? 'pass' : 'fail'}">${res2.q_min >= 0 ? 'OK' : 'NG'}</span> ≥ 0</td>
+      </tr>
+    </table>`;
+
+  // Forces table (常時)
+  const U1 = ul1.U;
+  document.getElementById('forces-table').innerHTML = `
+    <p style="font-size:11px;color:#888;margin-bottom:6px">常時（計画高水位 hw = ${hw} m）の集計。川裏趾（x=B）まわり。</p>
+    <table class="rt">
+      <tr>
+        <th>項目</th>
+        <th>鉛直力 V (kN/m)</th><th>作用点 x (m)</th><th>抵抗M Mr (kN·m/m)</th>
+        <th>水平力 H (kN/m)</th><th>作用高 y (m)</th><th>転倒M Mo (kN·m/m)</th>
+      </tr>
+      <tr>
+        <td>壁体自重 W</td>
+        <td class="r">${f(wall.W)}</td><td class="r">${f(wall.xc)}</td><td class="r">${f(res1.Mr_W)}</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">-</td>
+      </tr>
+      <tr>
+        <td>川表側水圧（水平）Pwh</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">-</td>
+        <td class="r">${f(wp1.Pwh)}</td><td class="r">${f(wp1.y_Pw)}</td><td class="r">${f(res1.Mo_Pw)}</td>
+      </tr>
+      ${wp1.Pwv > 0.01 ? `<tr>
+        <td>川表傾斜面上の水圧（鉛直）Pwv</td>
+        <td class="r">↑${f(wp1.Pwv)}</td><td class="r">${f(wp1.x_Pwv)}</td><td class="r">-</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">${f(res1.Mo_Pwv)}</td>
+      </tr>` : ''}
+      ${U1 > 0.01 ? `<tr>
+        <td>揚圧力 U</td>
+        <td class="r">↑${f(U1)}</td><td class="r">${f(ul1.xu)}</td><td class="r">-</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">${f(res1.Mo_U)}</td>
+      </tr>` : ''}
+      ${useEP && ep.Pah > 0.01 ? `<tr>
+        <td>川裏土圧（水平）Pah</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">${f(res1.Mr_Pah)}</td>
+        <td class="r">${f(ep.Pah)}</td><td class="r">${f(ep.y_Pa)}</td><td class="r">-</td>
+      </tr>
+      <tr>
+        <td>川裏土圧（鉛直）Pav</td>
+        <td class="r">${f(ep.Pav)}</td><td class="r">${f(ep.x_Pa)}</td><td class="r">${f(res1.Mr_Pav)}</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">-</td>
+      </tr>` : ''}
+      <tr class="hl2">
+        <td><b>合　計</b></td>
+        <td class="r"><b>ΣV = ${f(res1.sumV)}</b></td><td></td><td class="r"><b>ΣMr = ${f(res1.sumMr)}</b></td>
+        <td class="r"><b>ΣH = ${f(res1.sumH)}</b></td><td></td><td class="r"><b>ΣMo = ${f(res1.sumMo)}</b></td>
+      </tr>
+    </table>`;
+
+  // Load table
+  document.getElementById('load-table').innerHTML = `
+    <div class="section-title">壁体・荷重諸元</div>
+    <table class="rt">
+      <tr><th>項目</th><th>記号</th><th>値</th><th>単位</th></tr>
+      <tr><td>川裏面勾配（算出）</td><td>n₂</td><td class="r">${f(wall.n2, 3)}</td><td>-</td></tr>
+      <tr><td>壁体断面積</td><td>A</td><td class="r">${f(wall.A_wall)}</td><td>m²/m</td></tr>
+      <tr><td>壁体自重</td><td>W</td><td class="r">${f(wall.W)}</td><td>kN/m</td></tr>
+      <tr><td>重心 x（川表趾より）</td><td>xc</td><td class="r">${f(wall.xc)}</td><td>m</td></tr>
+      <tr><td>重心 z（底面より）</td><td>zc</td><td class="r">${f(wall.zc)}</td><td>m</td></tr>
+    </table>
+    <div class="section-title" style="margin-top:12px">水圧（常時 hw = ${hw} m）</div>
+    <table class="rt">
+      <tr><th>項目</th><th>記号</th><th>値</th><th>単位</th></tr>
+      <tr><td>川表面水平水圧合力</td><td>Pwh</td><td class="r">${f(wp1.Pwh)}</td><td>kN/m</td></tr>
+      <tr><td>水平水圧作用高（底面より）</td><td>y_Pw</td><td class="r">${f(wp1.y_Pw)}</td><td>m</td></tr>
+      ${wp1.Pwv > 0.001 ? `<tr><td>川表傾斜面 鉛直水圧</td><td>Pwv</td><td class="r">${f(wp1.Pwv)}</td><td>kN/m（上向き）</td></tr>` : ''}
+      ${ul1.U > 0.001 ? `<tr><td>底面揚圧力合力</td><td>U</td><td class="r">${f(ul1.U)}</td><td>kN/m（上向き）</td></tr>
+      <tr><td>揚圧力作用点（川表趾より）</td><td>xu</td><td class="r">${f(ul1.xu)}</td><td>m</td></tr>` : ''}
+    </table>
+    ${useEP && ep.Pa > 0.001 ? `
+    <div class="section-title" style="margin-top:12px">川裏土圧（クーロン式）</div>
+    <table class="rt">
+      <tr><th>項目</th><th>記号</th><th>値</th><th>単位</th></tr>
+      <tr><td>クーロン土圧係数</td><td>Ka</td><td class="r">${f(ep.Ka, 4)}</td><td>-</td></tr>
+      <tr><td>土圧合力（自重分）</td><td>Pa_w</td><td class="r">${f(ep.Pa_w)}</td><td>kN/m</td></tr>
+      <tr><td>土圧合力（載荷重分）</td><td>Pa_q</td><td class="r">${f(ep.Pa_q)}</td><td>kN/m</td></tr>
+      <tr class="hl"><td><b>土圧合力（合計）</b></td><td>Pa</td><td class="r"><b>${f(ep.Pa)}</b></td><td>kN/m</td></tr>
+      <tr><td>水平分力（川裏→川表）</td><td>Pah</td><td class="r">${f(ep.Pah)}</td><td>kN/m</td></tr>
+      <tr><td>鉛直分力（下向き）</td><td>Pav</td><td class="r">${f(ep.Pav)}</td><td>kN/m</td></tr>
+      <tr><td>合力作用高（底面より）</td><td>y_Pa</td><td class="r">${f(ep.y_Pa)}</td><td>m</td></tr>
+    </table>` : ''}
+    ${kh > 0 ? `
+    <div class="section-title" style="margin-top:12px">地震力</div>
+    <table class="rt">
+      <tr><th>項目</th><th>記号</th><th>値</th><th>単位</th></tr>
+      <tr><td>地震時水平力</td><td>Feq</td><td class="r">${f(Feq)}</td><td>kN/m</td></tr>
+      <tr><td>作用高（底面より）</td><td>zc</td><td class="r">${f(wall.zc)}</td><td>m</td></tr>
+      <tr><td>地震時水位</td><td>hw_eq</td><td class="r">${hw_eq}</td><td>m</td></tr>
+    </table>` : ''}`;
+}
+
+// ===== SVG DIAGRAM =====
+function drawDiagram(H, B, a, n1, n2, hw, gw, useUplift, wp, ul, ep, W, xc_W, zc_W, res, useEP) {
+  const svg  = document.getElementById('diagram');
+  const VW   = 680, VH = 300;
+  const ml   = 60, mr = 110, mt = 30, mb = 60;
+  const dw   = VW - ml - mr, dh = VH - mt - mb;
+
+  const xMin = -B * 0.35, xMax = B * 1.85;
+  const yMin = -0.4,      yMax = H * 1.3;
+  const sx = dw / (xMax - xMin);
+  const sy = dh / (yMax - yMin);
+  const sc = Math.min(sx, sy);
+
+  const ox = ml + (dw - B * sc) / 2 - xMin * sc;
+  const oy = VH - mb - (-yMin * sc);
+
+  const tx = x => ox + x * sc;
+  const ty = y => oy - y * sc;
+
+  // Wall corners
+  const P = [
+    [0,         0],   // 0: river toe
+    [B,         0],   // 1: land heel
+    [n1*H+a,    H],   // 2: top land side
+    [n1*H,      H],   // 3: top river side
+  ];
+
+  const defs = `<defs>
+    <marker id="ar"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#c0392b"/></marker>
+    <marker id="ag"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#27ae60"/></marker>
+    <marker id="ab"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#2471a3"/></marker>
+    <marker id="ab2" markerWidth="7" markerHeight="7" refX="1" refY="3.5" orient="auto"><path d="M7,0 L7,7 L0,3.5 z" fill="#2471a3"/></marker>
+    <marker id="abl" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#1a86c8"/></marker>
+    <marker id="ao"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#e67e22"/></marker>
+    <pattern id="hatch" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="7" stroke="#777" stroke-width="0.8"/>
+    </pattern>
+    <pattern id="soil" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+      <rect width="4" height="8" fill="#c8a96e" opacity="0.5"/>
+    </pattern>
+  </defs>`;
+
+  let s = defs;
+
+  // Ground line + hatch
+  s += `<rect x="${tx(-B*0.35)}" y="${ty(0)}" width="${tx(B*1.85)-tx(-B*0.35)}" height="14" fill="url(#hatch)" opacity="0.6"/>`;
+  s += `<line x1="${tx(-B*0.35)}" y1="${ty(0)}" x2="${tx(B*1.85)}" y2="${ty(0)}" stroke="#666" stroke-width="1.5"/>`;
+
+  // Water on river side (left of wall)
+  if (hw > 0) {
+    const wh = Math.min(hw, H);
+    const wx0 = tx(-B * 0.35), wy0 = ty(0), wy1 = ty(wh);
+    const wallAtHw = tx(n1 * Math.min(hw, H));  // river face x at hw
+    s += `<polygon points="${wx0},${wy0} ${wallAtHw},${wy0} ${wallAtHw},${wy1} ${wx0},${wy1}"
+           fill="#aed6f1" opacity="0.55" stroke="#2471a3" stroke-width="0.5"/>`;
+    // water surface line
+    s += `<line x1="${wx0}" y1="${ty(wh)}" x2="${wallAtHw}" y2="${ty(wh)}" stroke="#2471a3" stroke-width="1.2" stroke-dasharray="4,3"/>`;
+    s += `<text x="${wx0 + 4}" y="${ty(wh) - 4}" font-size="10" fill="#1a5276">hw = ${hw} m</text>`;
+  }
+
+  // Land-side soil (right of wall)
+  if (useEP && ep.Pa > 0.001) {
+    const hsv = Math.min(+document.getElementById('hs').value, H);
+    const bfR = B + B * 0.65;
+    s += `<polygon points="${tx(P[2][0])},${ty(P[2][1])} ${tx(bfR)},${ty(0)} ${tx(bfR)},${ty(hsv)} ${tx(P[2][0])},${ty(H)}"
+           fill="#d4a96a" opacity="0.4"/>`;
+    s += `<text x="${tx((P[2][0] + bfR) / 2)}" y="${ty(hsv * 0.5)}" text-anchor="middle" font-size="11" fill="#7d6608" opacity="0.9">川裏盛土</text>`;
+  }
+
+  // Wall polygon
+  const wp_str = P.map(p => `${tx(p[0])},${ty(p[1])}`).join(' ');
+  s += `<polygon points="${wp_str}" fill="#b0bec5" stroke="#37474f" stroke-width="1.5"/>`;
+  s += `<polygon points="${wp_str}" fill="url(#hatch)" opacity="0.3"/>`;
+
+  const refPx = B * sc * 0.38;
+  const wRef  = Math.max(W, 1);
+
+  // Weight W (green, downward)
+  s += `<line x1="${tx(xc_W)}" y1="${ty(H*0.65)}" x2="${tx(xc_W)}" y2="${ty(H*0.65)+refPx}"
+         stroke="#27ae60" stroke-width="2" marker-end="url(#ag)"/>`;
+  s += `<text x="${tx(xc_W)}" y="${ty(H*0.65)-5}" text-anchor="middle" font-size="11" fill="#1e8449">W=${W.toFixed(0)} kN/m</text>`;
+
+  // Water pressure Pwh (blue, horizontal →  leftward arrow pointing at wall from left)
+  if (wp.Pwh > 0.01) {
+    const pLen = refPx * (wp.Pwh / wRef);
+    const px2  = tx(0);  // points to river face at that height
+    const px1  = px2 - Math.min(pLen, B * sc * 0.8);
+    s += `<line x1="${px1}" y1="${ty(wp.y_Pw)}" x2="${px2}" y2="${ty(wp.y_Pw)}"
+           stroke="#1a86c8" stroke-width="2.5" marker-end="url(#abl)"/>`;
+    s += `<text x="${px1 - 4}" y="${ty(wp.y_Pw)+4}" text-anchor="end" font-size="11" fill="#1a5276">Pwh=${wp.Pwh.toFixed(0)} kN/m</text>`;
+    // Water pressure triangle on river face
+    const xFaceBase = tx(0), xFaceTop = tx(n1 * hw);
+    const qwscale = Math.min(refPx / Math.max(gw * hw, 1) * 0.5, 20);
+    const maxPressX = xFaceBase - gw * hw * qwscale;
+    s += `<polygon points="${xFaceBase},${ty(0)} ${maxPressX},${ty(0)} ${xFaceTop},${ty(hw)}"
+           fill="#2471a3" opacity="0.18" stroke="#2471a3" stroke-width="0.5"/>`;
+  }
+
+  // Uplift U (blue, upward at base)
+  if (ul.U > 0.01) {
+    const uLen = refPx * (ul.U / wRef) * 0.6;
+    const nArr = 5;
+    for (let i = 0; i <= nArr; i++) {
+      const xi = tx(i * B / nArr);
+      const uScaled = (1 - i / nArr) * uLen;  // triangle: max at river side
+      if (uScaled > 3) {
+        s += `<line x1="${xi}" y1="${ty(-0.1)}" x2="${xi}" y2="${ty(-0.1)-uScaled}"
+               stroke="#2471a3" stroke-width="1.5" marker-end="url(#abl)"/>`;
+      }
+    }
+    s += `<text x="${tx(B*0.2)}" y="${ty(-0.1)+20}" font-size="10" fill="#1a5276">U=${ul.U.toFixed(0)} kN/m</text>`;
+  }
+
+  // Earth pressure Pah (orange, pointing toward river/left)
+  if (useEP && ep.Pah > 0.01) {
+    const pLen2 = refPx * (ep.Pah / wRef);
+    const ex1   = tx(ep.x_Pa);
+    const ex2   = ex1 + Math.min(pLen2, B * sc * 0.8);
+    s += `<line x1="${ex2}" y1="${ty(ep.y_Pa)}" x2="${ex1}" y2="${ty(ep.y_Pa)}"
+           stroke="#e67e22" stroke-width="2" marker-end="url(#ao)"/>`;
+    s += `<text x="${ex2+4}" y="${ty(ep.y_Pa)+4}" font-size="11" fill="#d35400">Pah=${ep.Pah.toFixed(0)} kN/m</text>`;
+  }
+
+  // Base reaction trapezoid (upward)
+  const q_max = res.q_max, q_min = Math.max(res.q_min, 0);
+  const qsc2  = refPx / Math.max(q_max, 1) * 0.45;
+  const qy    = ty(-0.18);
+  s += `<polygon points="${tx(0)},${qy} ${tx(B)},${qy} ${tx(B)},${qy+q_min*qsc2} ${tx(0)},${qy+q_max*qsc2}"
+         fill="#3498db" opacity="0.2" stroke="#2980b9" stroke-width="1"/>`;
+  s += `<text x="${tx(0)}"   y="${qy+q_max*qsc2+12}" font-size="10" fill="#1a5276">${q_max.toFixed(0)}</text>`;
+  s += `<text x="${tx(B)}"   y="${qy+q_min*qsc2+12}" font-size="10" fill="#1a5276" text-anchor="end">${q_min.toFixed(0)}</text>`;
+  s += `<text x="${tx(B/2)}" y="${qy+(q_max+q_min)/2*qsc2+12}" font-size="10" fill="#1a5276" text-anchor="middle">kN/m²</text>`;
+
+  // Dimension H (left)
+  const dimX = tx(-B * 0.22);
+  s += `<line x1="${dimX}" y1="${ty(0)}" x2="${dimX}" y2="${ty(H)}" stroke="#2471a3" stroke-width="1" marker-end="url(#ab)" marker-start="url(#ab2)"/>`;
+  s += `<text x="${dimX-4}" y="${ty(H/2)}" font-size="11" fill="#1a5276" text-anchor="middle" transform="rotate(-90,${dimX-4},${ty(H/2)})">H = ${H} m</text>`;
+
+  // Dimension B (bottom)
+  const dimY = ty(-0.62);
+  s += `<line x1="${tx(0)}" y1="${dimY}" x2="${tx(B)}" y2="${dimY}" stroke="#2471a3" stroke-width="1" marker-end="url(#ab)" marker-start="url(#ab2)"/>`;
+  s += `<text x="${tx(B/2)}" y="${dimY-4}" font-size="11" fill="#1a5276" text-anchor="middle">B = ${B} m</text>`;
+
+  // Labels
+  s += `<text x="${tx(n1*H+a/2)}" y="${ty(H*0.45)}" text-anchor="middle" font-size="12" fill="#37474f" font-weight="bold">パラペット</text>`;
+  s += `<text x="${tx(-B*0.2)}" y="${ty(H*0.4)}" text-anchor="middle" font-size="10" fill="#1a5276">川表側</text>`;
+  s += `<text x="${tx(B*1.1)}"  y="${ty(H*0.4)}" text-anchor="middle" font-size="10" fill="#7d6608">川裏側</text>`;
+
+  svg.innerHTML = s;
+}
+
+// Auto-calculate on load
+window.addEventListener('load', () => {
+  toggleEP();
+  calculate();
+});
+</script>
+</body>
+</html>
