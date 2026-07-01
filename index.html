@@ -27,6 +27,8 @@
     .fg input:focus { outline: none; border-color: #1a3a5c; }
     .fg .unit { width: 44px; font-size: 11px; color: #888; }
     .fg .note { font-size: 11px; color: #aaa; }
+    .fg-check { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; font-size: 12px; color: #444; cursor: pointer; }
+    .fg-check input { width: 16px; height: 16px; cursor: pointer; }
 
     .btn { width: 100%; padding: 11px; background: #1a3a5c; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; margin-top: 14px; letter-spacing: 1px; transition: background 0.2s; }
     .btn:hover { background: #2a5080; }
@@ -64,7 +66,7 @@
 <body>
 <header>
   <h1>重力式擁壁　安定計算</h1>
-  <p>道路土工－擁壁工指針 準拠 ／ クーロン土圧式</p>
+  <p>道路土工－擁壁工指針 準拠 ／ 試行くさび法（試行楔法）</p>
   <div style="margin-left:auto;font-size:12px"><a href="parapet.html" style="color:#9ab;text-decoration:none;border:1px solid #9ab;border-radius:4px;padding:3px 10px">河川特殊堤パラペット計算へ →</a></div>
 </header>
 
@@ -82,15 +84,25 @@
 
       <div class="sec-label">材料定数</div>
       <div class="fg"><label>コンクリート単位重量 γc</label><input id="gamma_c" type="number" value="23.0" step="0.5"><span class="unit">kN/m³</span></div>
+      <div class="fg"><label>水の単位重量 γw</label><input id="gamma_w" type="number" value="9.8" step="0.1"><span class="unit">kN/m³</span></div>
 
       <div class="sec-label">裏込め土</div>
       <div class="fg"><label>単位重量 γs</label><input id="gamma_s" type="number" value="18.0" step="0.5"><span class="unit">kN/m³</span></div>
+      <div class="fg"><label>飽和単位重量 γsat</label><input id="gamma_sat" type="number" value="19.0" step="0.5"><span class="unit">kN/m³</span><span class="note">（水位以下）</span></div>
       <div class="fg"><label>内部摩擦角 φ</label><input id="phi" type="number" value="30" min="10" max="45" step="1"><span class="unit">度</span></div>
       <div class="fg"><label>壁摩擦角 δ</label><input id="delta" type="number" value="15" min="0" max="30" step="1"><span class="unit">度</span><span class="note">（推奨：φ/2）</span></div>
-      <div class="fg"><label>背面盛土傾斜角 β</label><input id="beta" type="number" value="0" min="0" max="30" step="1"><span class="unit">度</span><span class="note">（水平=0）</span></div>
+
+      <div class="sec-label">背面盛土 嵩上げ</div>
+      <div class="fg"><label>嵩上げ高 Δh</label><input id="dh" type="number" value="0.0" step="0.1"><span class="unit">m</span><span class="note">（負値可）</span></div>
+      <div class="fg"><label>嵩上げ勾配 1:n</label><input id="nk" type="number" value="1.5" min="0.1" step="0.1"><span class="unit">-</span><span class="note">（水平/鉛直）</span></div>
 
       <div class="sec-label">荷重</div>
-      <div class="fg"><label>等分布載荷重 q</label><input id="q" type="number" value="10" min="0" step="1"><span class="unit">kN/m²</span></div>
+      <div class="fg"><label>等分布載荷重 q</label><input id="q" type="number" value="10" min="0" step="1"><span class="unit">kN/m²</span><span class="note">水平面に作用</span></div>
+
+      <div class="sec-label">水位条件</div>
+      <div class="fg"><label>前面水位 hwf</label><input id="hwf" type="number" value="0.0" min="0" step="0.1"><span class="unit">m</span><span class="note">底面から</span></div>
+      <div class="fg"><label>背面水位 hwb</label><input id="hwb" type="number" value="0.0" min="0" step="0.1"><span class="unit">m</span><span class="note">底面から</span></div>
+      <label class="fg-check"><input type="checkbox" id="use_uplift" checked> 底面揚圧力を考慮する</label>
 
       <div class="sec-label">地盤条件</div>
       <div class="fg"><label>底面摩擦係数 μ</label><input id="mu" type="number" value="0.5" min="0.1" max="1.0" step="0.05"><span class="unit">-</span></div>
@@ -105,7 +117,7 @@
     <div class="card">
       <h2>断面図・作用力</h2>
       <div id="diagram-wrap">
-        <svg id="diagram" width="100%" height="280" viewBox="0 0 620 280" preserveAspectRatio="xMidYMid meet"></svg>
+        <svg id="diagram" width="100%" height="330" viewBox="0 0 620 330" preserveAspectRatio="xMidYMid meet"></svg>
       </div>
     </div>
 
@@ -125,12 +137,23 @@
       </div>
 
       <div class="card">
-        <h2>土圧計算（クーロン式）</h2>
+        <h2>土圧計算（試行くさび法）</h2>
         <div id="ep-table"></div>
         <div class="formula-note">
-          Ka = sin²(φ+α) / [sin²α · sin(α−δ) · {1 + √(sin(φ+δ)·sin(φ−β) / (sin(α−δ)·sin(α+β)))}²]<br>
-          Pa = ½·Ka·γs·H²（自重分） + Ka·q·H（載荷重分）<br>
-          Pah = Pa·cos(δ+ψ)，Pav = Pa·sin(δ+ψ)（下向き）　ψ = arctan(n₂)
+          P(ω) = W(ω)·sin(ω−φ) / cos(ω−φ−δ−ψ)　→　Pa = max P(ω)（すべり角 ω を試行）<br>
+          W(ω)：すべり土塊重量（水位以下は γ' = γsat − γw、載荷重 q は地表水平面部に作用）<br>
+          背面形状：壁天端背面から勾配 1:n で嵩上げ高 Δh（負値=切下げ）まで擦り付け、以降水平。<br>
+          Pah = Pa·cos(δ+ψ)，Pav = Pa·sin(δ+ψ)（下向き）　ψ = arctan(n₂)<br>
+          作用位置 y_Pa：壁高を20分割し、各深さの土圧増分の重心位置から算定。
+        </div>
+      </div>
+
+      <div class="card" id="water-card">
+        <h2>水圧・揚圧力計算</h2>
+        <div id="water-table"></div>
+        <div class="formula-note">
+          水圧（水平）Pwh = γw·hw²/2（三角形分布，作用高 hw/3）　傾斜面上は鉛直分力 V = n·Pwh（下向き）<br>
+          揚圧力 U：底面に前面側 γw·hwf → 背面側 γw·hwb の台形（直線）分布として作用（上向き）。
         </div>
       </div>
 
@@ -142,96 +165,250 @@
 const RAD = Math.PI / 180;
 const f = (v, d = 3) => (+v).toFixed(d);
 
+// ===== CALC CORE =====
+
+// 時計回り多角形の面積（正値を返す）
+function polyAreaCW(pts) {
+  let s = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length];
+    s += x1 * y2 - x2 * y1;
+  }
+  return -s / 2;
+}
+
+// y <= yc の半平面で多角形をクリップ（Sutherland–Hodgman、向きは保存）
+function clipBelowY(pts, yc) {
+  const out = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    const ain = a[1] <= yc, bin = b[1] <= yc;
+    if (ain) out.push(a);
+    if (ain !== bin) {
+      const t = (yc - a[1]) / (b[1] - a[1]);
+      out.push([a[0] + t * (b[0] - a[0]), yc]);
+    }
+  }
+  return out;
+}
+
+// 背面盛土の地表面形状：壁天端背面 (xt, H) から 1:nk で H+dh へ擦り付け、以降水平
+// top：壁側の地表面起点。切下げ（dh<0）の勾配が壁背面より急な場合は、
+// 背面に沿って H+dh まで下がった水平地表として扱う。
+function makeSurface(xt, H, dh, nk, B, n2) {
+  if (Math.abs(dh) < 1e-9) return { top: [xt, H], A1: null, ys: H, xq: xt };
+  const ys = H + dh;
+  if (dh < 0 && nk <= n2 + 1e-9) {
+    const x0 = B - n2 * ys;
+    return { top: [x0, ys], A1: null, ys, xq: x0 };
+  }
+  const xs = xt + nk * Math.abs(dh);
+  return { top: [xt, H], A1: [xs, ys], ys, xq: xs };
+}
+
+// すべり面（起点 (xa,ya)、水平から角度 w）と地表面の交点
+function slipIntersect(xa, ya, w, surf) {
+  const t = Math.tan(w);
+  if (surf.A1) {
+    const [x0, y0] = surf.top, [x1, y1] = surf.A1;
+    const m = (y1 - y0) / (x1 - x0);
+    const den = t - m;
+    if (Math.abs(den) > 1e-12) {
+      const x = (y0 - m * x0 - ya + t * xa) / den;
+      if (x >= x0 - 1e-9 && x <= x1 + 1e-9 && x > xa + 1e-6) {
+        const y = ya + (x - xa) * t;
+        if (y > ya) return { x, y, onSlope: true };
+      }
+    }
+  }
+  if (t > 1e-9 && surf.ys > ya + 1e-9) {
+    const x = xa + (surf.ys - ya) / t;
+    if (x >= surf.xq - 1e-9 && x > xa + 1e-6) return { x, y: surf.ys, onSlope: false };
+  }
+  return null;
+}
+
+// すべり角 w の土くさびによる土圧（起点は背面上の高さ ya の点）
+function wedgeForce(ya, w, geo) {
+  const xa = geo.B - geo.n2 * ya;
+  const inter = slipIntersect(xa, ya, w, geo.surf);
+  if (!inter) return null;
+  const poly = [[xa, ya], geo.surf.top];
+  if (geo.surf.A1 && !inter.onSlope) poly.push(geo.surf.A1);
+  poly.push([inter.x, inter.y]);
+  const A = polyAreaCW(poly);
+  if (A <= 1e-9) return null;
+  let Asub = 0;
+  if (geo.hwb > 1e-9) {
+    const clipped = clipBelowY(poly, geo.hwb);
+    if (clipped.length >= 3) Asub = Math.min(Math.max(polyAreaCW(clipped), 0), A);
+  }
+  const Wsoil = geo.gs * (A - Asub) + (geo.gsat - geo.gw) * Asub;
+  const Lq = !inter.onSlope ? Math.max(inter.x - geo.surf.xq, 0) : 0;
+  const Wt = Wsoil + geo.q * Lq;
+  if (Wt <= 0) return null;
+  const P = Wt * Math.sin(w - geo.phi) / Math.cos(w - geo.phi - geo.delta - geo.psi);
+  return { P, Wt, inter, xa, ya };
+}
+
+// すべり角を試行して最大土圧を探索
+function trialWedge(ya, geo) {
+  let best = null;
+  const wMax = 89.5 * RAD;
+  for (let w = geo.phi + 0.5 * RAD; w <= wMax; w += 0.2 * RAD) {
+    const r = wedgeForce(ya, w, geo);
+    if (r && (!best || r.P > best.P)) { const ww = w; best = r; best.w = ww; }
+  }
+  if (!best) return { P: 0, w: 0, Wt: 0, inter: null };
+  const w0 = best.w;
+  for (let w = w0 - 0.2 * RAD; w <= w0 + 0.2 * RAD; w += 0.01 * RAD) {
+    if (w <= geo.phi || w > wMax) continue;
+    const r = wedgeForce(ya, w, geo);
+    if (r && r.P > best.P) { const ww = w; best = r; best.w = ww; }
+  }
+  return best;
+}
+
+// 全高の土圧と作用位置（壁高を N 分割した各深さの土圧増分から重心を算定）
+function earthPressureTW(geo, N = 20) {
+  const full = trialWedge(0, geo);
+  const Pk = [0];
+  for (let k = 1; k < N; k++) Pk.push(trialWedge(geo.H * (1 - k / N), geo).P);
+  Pk.push(full.P);
+  let sMy = 0, sP = 0;
+  for (let k = 1; k <= N; k++) {
+    const dP = Math.max(Pk[k] - Pk[k - 1], 0);
+    sMy += dP * geo.H * (1 - (k - 0.5) / N);
+    sP  += dP;
+  }
+  const y_Pa = sP > 1e-9 ? sMy / sP : geo.H / 3;
+  return { Pa: full.P, y_Pa, wCr: full.w, Wt: full.Wt, inter: full.inter };
+}
+
+// 勾配 slope（水平/鉛直）の面（高さ Hface まで）に作用する静水圧
+// 戻り値：Ph 水平合力, y 作用高（底面から）, V 鉛直分力（下向き）
+function facePressure(hw, Hface, gw, slope) {
+  const m = Math.min(hw, Hface);
+  if (hw <= 0 || m <= 0) return { Ph: 0, y: 0, V: 0 };
+  const Ph = gw * (hw * m - m * m / 2);
+  const y  = gw * (hw * m * m / 2 - m * m * m / 3) / Ph;
+  return { Ph, y, V: slope * Ph };
+}
+
+// ===== MAIN =====
 function calculate() {
   // --- inputs ---
-  const H       = +document.getElementById('H').value;
-  const B       = +document.getElementById('B').value;
-  const a       = +document.getElementById('a_top').value;
-  const n1      = +document.getElementById('n1').value;
-  const gc      = +document.getElementById('gamma_c').value;
-  const gs      = +document.getElementById('gamma_s').value;
-  const phi     = +document.getElementById('phi').value * RAD;
-  const delta   = +document.getElementById('delta').value * RAD;
-  const beta    = +document.getElementById('beta').value * RAD;
-  const q       = +document.getElementById('q').value;
-  const mu      = +document.getElementById('mu').value;
-  const qa      = +document.getElementById('qa').value;
+  const H     = +document.getElementById('H').value;
+  const B     = +document.getElementById('B').value;
+  const a     = +document.getElementById('a_top').value;
+  const n1    = +document.getElementById('n1').value;
+  const gc    = +document.getElementById('gamma_c').value;
+  const gw    = +document.getElementById('gamma_w').value;
+  const gs    = +document.getElementById('gamma_s').value;
+  const gsat  = +document.getElementById('gamma_sat').value;
+  const phi   = +document.getElementById('phi').value * RAD;
+  const delta = +document.getElementById('delta').value * RAD;
+  const dh    = +document.getElementById('dh').value;
+  const nk    = +document.getElementById('nk').value;
+  const q     = +document.getElementById('q').value;
+  const hwf   = +document.getElementById('hwf').value;
+  const hwb   = +document.getElementById('hwb').value;
+  const useUplift = document.getElementById('use_uplift').checked;
+  const mu    = +document.getElementById('mu').value;
+  const qa    = +document.getElementById('qa').value;
 
-  // --- derived geometry ---
-  const n2 = (B - a) / H - n1;   // back face slope (horiz/vert)
-  if (n2 < -1e-9) {
+  // --- validation ---
+  const n2raw = (B - a) / H - n1;
+  if (n2raw < -1e-9) {
     alert('形状エラー: (B−a)/H < n₁ になっています。底面幅 B を大きくするか天端幅 a を小さくしてください。');
     return;
   }
-  const psi   = Math.atan(Math.max(n2, 0));   // back face angle from vertical
-  const alpha = Math.PI / 2 - psi;            // back face angle from horizontal (Coulomb α)
+  if (H + dh <= 0.05) { alert('嵩上げ高 Δh が低すぎます（H + Δh ≦ 0）。'); return; }
+  if (Math.abs(dh) > 1e-9 && nk <= 0) { alert('嵩上げ勾配 1:n の n は正の値としてください。'); return; }
+  if (hwf > H + 1e-9) { alert('前面水位 hwf は壁高 H 以下としてください。'); return; }
+  const hwbMax = H + Math.max(dh, 0);
+  if (hwb > hwbMax + 1e-9) { alert(`背面水位 hwb が背面地表面（${f(hwbMax, 2)} m）を超えています。`); return; }
+  if (hwb > 0 && gsat - gw <= 0) { alert('γsat − γw ≦ 0 です。飽和単位重量 γsat を確認してください。'); return; }
 
-  // --- Coulomb Ka ---
-  const A = Math.sin(phi + alpha);
-  const C = Math.sin(alpha - delta);
-  const D = Math.sin(alpha + beta);
-  const inner = Math.sin(phi + delta) * Math.sin(phi - beta) / (C * D);
-  if (inner < 0) { alert('土圧パラメータが不正です（φ < β になっていませんか？）'); return; }
-  const Ka = (A * A) / (Math.sin(alpha) * Math.sin(alpha) * C * Math.pow(1 + Math.sqrt(inner), 2));
+  const n2  = Math.max(n2raw, 0);
+  const psi = Math.atan(n2);            // back face angle from vertical
+  const xt  = n1 * H + a;               // x of back-face top
 
-  // --- Earth pressure ---
-  const Pa_w = 0.5 * Ka * gs * H * H;   // triangular (weight)
-  const Pa_q = Ka * q * H;               // uniform (surcharge)
-  const Pa   = Pa_w + Pa_q;
-
-  const ang  = delta + psi;              // Pa direction below horizontal
+  // --- Earth pressure (trial wedge) ---
+  const surf = makeSurface(xt, H, dh, nk, B, n2);
+  const geo  = { B, n2, xt, H, surf, gs, gsat, gw, hwb, q, phi, delta, psi };
+  const ep   = earthPressureTW(geo);
+  const Pa   = ep.Pa;
+  const ang  = delta + psi;             // Pa direction below horizontal
   const Pah  = Pa * Math.cos(ang);
-  const Pav  = Pa * Math.sin(ang);       // downward
-
-  // Height of resultant from base
-  const y_Pa = (Pa_w * H / 3 + Pa_q * H / 2) / Pa;
-  // Horizontal position (on back face at height y_Pa)
+  const Pav  = Pa * Math.sin(ang);      // downward
+  const y_Pa = ep.y_Pa;
   const x_Pa = B - n2 * y_Pa;           // x from toe
 
+  // --- Water pressures ---
+  const wb = facePressure(hwb, H, gw, n2);   // back side（駆動）
+  const x_Vwb = wb.Ph > 0 ? B - n2 * wb.y : B;
+  const wf = facePressure(hwf, H, gw, n1);   // front side（抵抗）
+  const x_Vwf = wf.Ph > 0 ? n1 * wf.y : 0;
+
+  // --- Uplift (trapezoid: γw·hwf at toe → γw·hwb at heel) ---
+  const uToe = gw * hwf, uHeel = gw * hwb;
+  let U = 0, xU = B / 2;
+  if (useUplift && uToe + uHeel > 1e-9) {
+    U  = 0.5 * (uToe + uHeel) * B;
+    xU = B * (uToe + 2 * uHeel) / (3 * (uToe + uHeel));
+  }
+
   // --- Wall self-weight & centroid (decompose trapezoid) ---
-  // Rectangle (stem): x=[n1·H, n1·H+a], h=H
   const A_r  = a * H;
   const xc_r = n1 * H + a / 2;
-  // Front triangle: (0,0),(n1·H,0),(n1·H,H)
   const A_f  = 0.5 * n1 * H * H;
   const xc_f = n1 > 1e-9 ? 2 * n1 * H / 3 : 0;
-  // Back triangle: (n1·H+a,0),(B,0),(n1·H+a,H)
   const A_b  = 0.5 * n2 * H * H;
   const xc_b = n2 > 1e-9 ? (2 * (n1 * H + a) + B) / 3 : (n1 * H + a);
 
-  const A_wall  = A_r + A_f + A_b;      // = (a+B)/2·H
+  const A_wall  = A_r + A_f + A_b;
   const xc_wall = (A_r * xc_r + A_f * xc_f + A_b * xc_b) / A_wall;
-  const W        = gc * A_wall;
+  const W       = gc * A_wall;
 
-  // --- Moments about toe (counterclockwise = resisting) ---
+  // --- Moments about toe ---
   const Mr_W   = W * xc_wall;
   const Mr_Pav = Pav * x_Pa;
+  const Mr_Vwb = wb.V * x_Vwb;
+  const Mr_Vwf = wf.V * x_Vwf;
+  const Mr_Pwf = wf.Ph * wf.y;          // 前面水圧（水平）は抵抗側
   const Mo_Pah = Pah * y_Pa;
+  const Mo_Pwb = wb.Ph * wb.y;
+  const Mo_U   = U * xU;
 
-  const sumMr  = Mr_W + Mr_Pav;
-  const sumMo  = Mo_Pah;
-  const sumV   = W + Pav;
+  const sumMr = Mr_W + Mr_Pav + Mr_Vwb + Mr_Vwf + Mr_Pwf;
+  const sumMo = Mo_Pah + Mo_Pwb + Mo_U;
+  const sumV  = W + Pav + wb.V + wf.V - U;
+  const sumH  = Math.max(Pah + wb.Ph - wf.Ph, 0);
 
   // --- Overturning ---
-  const Fs_OT  = sumMr / sumMo;
-  const ok_OT  = Fs_OT >= 1.5;
+  const Fs_OT = sumMo > 1e-9 ? sumMr / sumMo : 999;
+  const ok_OT = Fs_OT >= 1.5;
 
   // --- Sliding ---
-  const Fs_SL  = mu * sumV / Pah;
-  const ok_SL  = Fs_SL >= 1.5;
+  const Fs_SL = sumH > 1e-9 ? mu * sumV / sumH : 999;
+  const ok_SL = Fs_SL >= 1.5;
 
   // --- Bearing capacity ---
-  const x_R    = (sumMr - sumMo) / sumV;  // resultant from toe
-  const e      = B / 2 - x_R;             // eccentricity
-  const e_max  = B / 6;
-  const q_max  = (sumV / B) * (1 + 6 * e / B);
-  const q_min  = (sumV / B) * (1 - 6 * e / B);
-  const ok_e   = Math.abs(e) <= e_max;
-  const ok_q   = q_max <= qa;
-  const ok_BC  = ok_e && ok_q;
+  const x_R   = sumV > 1e-9 ? (sumMr - sumMo) / sumV : B / 2;
+  const e     = B / 2 - x_R;
+  const e_max = B / 6;
+  const q_max = sumV > 0 ? (sumV / B) * (1 + 6 * e / B) : 0;
+  const q_min = sumV > 0 ? (sumV / B) * (1 - 6 * e / B) : 0;
+  const ok_e  = Math.abs(e) <= e_max;
+  const ok_q  = q_max <= qa;
+  const ok_V  = sumV > 0;
+  const ok_BC = ok_e && ok_q && ok_V;
 
   // ===== RENDER =====
-  drawDiagram(H, B, a, n1, n2, Pa, Pah, Pav, y_Pa, x_Pa, W, xc_wall, q, mu, sumV);
+  drawDiagram({ H, B, a, n1, n2, xt, surf, dh, hwf, hwb, q, W, xc: xc_wall,
+                Pah, Pav, y_Pa, x_Pa, wb, wf, U, uToe, uHeel, useUplift,
+                wCr: ep.wCr, inter: ep.inter, q_max, q_min });
 
   document.getElementById('no-result').classList.add('hidden');
   document.getElementById('results').classList.remove('hidden');
@@ -254,7 +431,7 @@ function calculate() {
       <div class="stab-req">必要安全率 ≥ 1.50</div>
       <div class="stab-detail">
         μ·ΣV = ${f(mu * sumV)} kN/m<br>
-        Pah = ${f(Pah)} kN/m
+        ΣH = ${f(sumH)} kN/m
       </div>
       <span class="badge ${ok_SL ? 'pass' : 'fail'}">${ok_SL ? 'OK' : 'NG'}</span>
     </div>
@@ -295,12 +472,58 @@ function calculate() {
       </tr>
       <tr>
         <td>平均地盤反力 qavg</td>
-        <td class="r">${f(sumV / B, 1)}</td><td>kN/m²</td><td>-</td>
+        <td class="r">${f(sumV > 0 ? sumV / B : 0, 1)}</td><td>kN/m²</td><td>-</td>
       </tr>
     </table>
   `;
 
   // --- Forces table ---
+  let rows = `
+      <tr>
+        <td>壁体自重 W</td>
+        <td class="r">${f(W)}</td><td class="r">${f(xc_wall)}</td><td class="r">${f(Mr_W)}</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">-</td>
+      </tr>
+      <tr>
+        <td>土圧鉛直分力 Pav</td>
+        <td class="r">${f(Pav)}</td><td class="r">${f(x_Pa)}</td><td class="r">${f(Mr_Pav)}</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">-</td>
+      </tr>
+      <tr>
+        <td>土圧水平分力 Pah</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">-</td>
+        <td class="r">${f(Pah)}</td><td class="r">${f(y_Pa)}</td><td class="r">${f(Mo_Pah)}</td>
+      </tr>`;
+  if (wb.Ph > 0.005) rows += `
+      <tr>
+        <td>背面水圧（水平）Pwbh</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">-</td>
+        <td class="r">${f(wb.Ph)}</td><td class="r">${f(wb.y)}</td><td class="r">${f(Mo_Pwb)}</td>
+      </tr>`;
+  if (wb.V > 0.005) rows += `
+      <tr>
+        <td>背面水圧（鉛直）Vwb</td>
+        <td class="r">${f(wb.V)}</td><td class="r">${f(x_Vwb)}</td><td class="r">${f(Mr_Vwb)}</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">-</td>
+      </tr>`;
+  if (wf.Ph > 0.005) rows += `
+      <tr>
+        <td>前面水圧（水平・抵抗）Pwfh</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">${f(Mr_Pwf)}</td>
+        <td class="r">−${f(wf.Ph)}</td><td class="r">${f(wf.y)}</td><td class="r">-</td>
+      </tr>`;
+  if (wf.V > 0.005) rows += `
+      <tr>
+        <td>前面水圧（鉛直）Vwf</td>
+        <td class="r">${f(wf.V)}</td><td class="r">${f(x_Vwf)}</td><td class="r">${f(Mr_Vwf)}</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">-</td>
+      </tr>`;
+  if (U > 0.005) rows += `
+      <tr>
+        <td>揚圧力 U（上向き）</td>
+        <td class="r">↑${f(U)}</td><td class="r">${f(xU)}</td><td class="r">-</td>
+        <td class="r">-</td><td class="r">-</td><td class="r">${f(Mo_U)}</td>
+      </tr>`;
   document.getElementById('forces-table').innerHTML = `
     <table class="rt">
       <tr>
@@ -308,33 +531,13 @@ function calculate() {
         <th>作用点 x (m)</th><th>抵抗モーメント Mr (kN·m/m)</th>
         <th>水平力 H (kN/m)</th><th>作用高 y (m)</th><th>転倒モーメント Mo (kN·m/m)</th>
       </tr>
-      <tr>
-        <td>壁体自重 W</td>
-        <td class="r">${f(W)}</td>
-        <td class="r">${f(xc_wall)}</td>
-        <td class="r">${f(Mr_W)}</td>
-        <td class="r">-</td><td class="r">-</td><td class="r">-</td>
-      </tr>
-      <tr>
-        <td>土圧鉛直分力 Pav</td>
-        <td class="r">${f(Pav)}</td>
-        <td class="r">${f(x_Pa)}</td>
-        <td class="r">${f(Mr_Pav)}</td>
-        <td class="r">-</td><td class="r">-</td><td class="r">-</td>
-      </tr>
-      <tr>
-        <td>土圧水平分力 Pah</td>
-        <td class="r">-</td><td class="r">-</td><td class="r">-</td>
-        <td class="r">${f(Pah)}</td>
-        <td class="r">${f(y_Pa)}</td>
-        <td class="r">${f(Mo_Pah)}</td>
-      </tr>
+      ${rows}
       <tr class="hl2">
         <td><b>合　計</b></td>
-        <td class="r"><b>${f(sumV)}</b></td>
+        <td class="r"><b>ΣV = ${f(sumV)}</b></td>
         <td class="r"></td>
         <td class="r"><b>ΣMr = ${f(sumMr)}</b></td>
-        <td class="r"><b>${f(Pah)}</b></td>
+        <td class="r"><b>ΣH = ${f(sumH)}</b></td>
         <td class="r"></td>
         <td class="r"><b>ΣMo = ${f(sumMo)}</b></td>
       </tr>
@@ -346,84 +549,134 @@ function calculate() {
     <table class="rt">
       <tr><th>項目</th><th>記号</th><th>値</th><th>単位</th></tr>
       <tr><td>背面勾配（算出）</td><td>n₂</td><td class="r">${f(n2, 3)}</td><td>-</td></tr>
-      <tr><td>背面角（水平から）</td><td>α</td><td class="r">${f(alpha / RAD, 2)}</td><td>度</td></tr>
-      <tr><td>クーロン土圧係数</td><td>Ka</td><td class="r">${f(Ka, 4)}</td><td>-</td></tr>
-      <tr><td>土圧合力（自重分）</td><td>Pa_w</td><td class="r">${f(Pa_w)}</td><td>kN/m</td></tr>
-      <tr><td>土圧合力（載荷重分）</td><td>Pa_q</td><td class="r">${f(Pa_q)}</td><td>kN/m</td></tr>
-      <tr class="hl"><td><b>土圧合力（合計）</b></td><td>Pa</td><td class="r"><b>${f(Pa)}</b></td><td>kN/m</td></tr>
+      <tr><td>背面角（鉛直から）</td><td>ψ</td><td class="r">${f(psi / RAD, 2)}</td><td>度</td></tr>
+      <tr><td>嵩上げ高／嵩上げ勾配</td><td>Δh / 1:n</td><td class="r">${f(dh, 2)} / 1:${f(nk, 2)}</td><td>m / -</td></tr>
+      <tr><td>臨界すべり角（水平から）</td><td>ω</td><td class="r">${f(ep.wCr / RAD, 2)}</td><td>度</td></tr>
+      <tr><td>すべり土塊重量（q 含む）</td><td>W</td><td class="r">${f(ep.Wt)}</td><td>kN/m</td></tr>
+      <tr class="hl"><td><b>土圧合力（最大）</b></td><td>Pa</td><td class="r"><b>${f(Pa)}</b></td><td>kN/m</td></tr>
       <tr><td>水平分力</td><td>Pah</td><td class="r">${f(Pah)}</td><td>kN/m</td></tr>
       <tr><td>鉛直分力（下向き）</td><td>Pav</td><td class="r">${f(Pav)}</td><td>kN/m</td></tr>
       <tr><td>合力作用高さ（底面より）</td><td>y_Pa</td><td class="r">${f(y_Pa)}</td><td>m</td></tr>
+      <tr><td>合力作用位置（壁趾より）</td><td>x_Pa</td><td class="r">${f(x_Pa)}</td><td>m</td></tr>
     </table>
   `;
+
+  // --- Water pressure table ---
+  const hasWater = hwf > 0 || hwb > 0;
+  document.getElementById('water-card').style.display = hasWater ? '' : 'none';
+  if (hasWater) {
+    let wrows = '';
+    if (hwb > 0) wrows += `
+      <tr><td>背面水位</td><td>hwb</td><td class="r">${f(hwb, 2)}</td><td>m</td></tr>
+      <tr><td>背面水圧（水平）</td><td>Pwbh</td><td class="r">${f(wb.Ph)}</td><td>kN/m</td></tr>
+      <tr><td>　作用高（底面より）</td><td>y</td><td class="r">${f(wb.y)}</td><td>m</td></tr>
+      ${wb.V > 0.005 ? `<tr><td>背面水圧（鉛直・下向き）</td><td>Vwb</td><td class="r">${f(wb.V)}</td><td>kN/m</td></tr>` : ''}`;
+    if (hwf > 0) wrows += `
+      <tr><td>前面水位</td><td>hwf</td><td class="r">${f(hwf, 2)}</td><td>m</td></tr>
+      <tr><td>前面水圧（水平・抵抗）</td><td>Pwfh</td><td class="r">${f(wf.Ph)}</td><td>kN/m</td></tr>
+      <tr><td>　作用高（底面より）</td><td>y</td><td class="r">${f(wf.y)}</td><td>m</td></tr>
+      ${wf.V > 0.005 ? `<tr><td>前面水圧（鉛直・下向き）</td><td>Vwf</td><td class="r">${f(wf.V)}</td><td>kN/m</td></tr>` : ''}`;
+    wrows += useUplift ? `
+      <tr class="hl"><td><b>揚圧力（上向き）</b></td><td>U</td><td class="r"><b>${f(U)}</b></td><td>kN/m</td></tr>
+      <tr><td>　揚圧力（壁趾側強度）</td><td>u_toe</td><td class="r">${f(uToe)}</td><td>kN/m²</td></tr>
+      <tr><td>　揚圧力（壁踵側強度）</td><td>u_heel</td><td class="r">${f(uHeel)}</td><td>kN/m²</td></tr>
+      <tr><td>　作用点（壁趾より）</td><td>xU</td><td class="r">${f(xU)}</td><td>m</td></tr>` : `
+      <tr><td>揚圧力</td><td>U</td><td class="r">考慮しない</td><td>-</td></tr>`;
+    document.getElementById('water-table').innerHTML = `
+      <table class="rt">
+        <tr><th>項目</th><th>記号</th><th>値</th><th>単位</th></tr>
+        ${wrows}
+      </table>
+    `;
+  }
 }
 
 // ===== SVG DIAGRAM =====
-function drawDiagram(H, B, a, n1, n2, Pa, Pah, Pav, y_Pa, x_Pa, W, xc_W, q, mu, sumV) {
-  const svg   = document.getElementById('diagram');
-  const VW    = 620, VH = 280;
-  const ml    = 55, mr = 100, mt = 30, mb = 50;
-  const dw    = VW - ml - mr, dh = VH - mt - mb;
+function drawDiagram(d) {
+  const svg = document.getElementById('diagram');
+  const VW  = 620, VH = 330;
+  const ml  = 58, mr = 30, mt = 26;
 
-  // World extents (add margins around wall)
-  const xMin = -B * 0.25, xMax = B * 1.7;
-  const yMin = -0.25,     yMax = H * 1.25;
-  const sx = dw / (xMax - xMin);
-  const sy = dh / (yMax - yMin);
-  const sc = Math.min(sx, sy);
-
-  // Center wall in available space
-  const ox = ml + (dw - B * sc) / 2 - xMin * sc;
-  const oy = VH - mb - (-yMin * sc);
-
+  const interX = d.inter ? d.inter.x : d.B * 1.6;
+  const interY = d.inter ? d.inter.y : d.surf.ys;
+  const xMin = -d.B * 0.45;
+  const xMax = Math.max(d.B * 1.7, d.surf.xq + d.B * 0.35, interX + d.B * 0.12);
+  const yMax = Math.max(d.H * 1.28, d.surf.ys + 0.22 * d.H, interY + 0.15 * d.H);
+  const dw   = VW - ml - mr, dhh = VH - mt - 72;   // 72px reserved below base
+  const sc   = Math.min(dw / (xMax - xMin), dhh / yMax);
+  const ox   = ml - xMin * sc;
+  const oy   = mt + yMax * sc;
   const tx = x => ox + x * sc;
   const ty = y => oy - y * sc;
 
+  const H = d.H, B = d.B, n1 = d.n1, n2 = d.n2, xt = d.xt;
+
   // Wall corners
   const P = [
-    [0,           0],     // 0: toe
-    [B,           0],     // 1: heel
-    [n1*H + a,    H],     // 2: top-back
-    [n1*H,        H],     // 3: top-front
+    [0,     0],   // toe
+    [B,     0],   // heel
+    [xt,    H],   // top-back
+    [n1*H,  H],   // top-front
   ];
 
-  // Arrow markers
   const defs = `<defs>
     <marker id="ar"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#c0392b"/></marker>
     <marker id="ag"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#27ae60"/></marker>
     <marker id="ab"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#2980b9"/></marker>
     <marker id="ab2" markerWidth="7" markerHeight="7" refX="1" refY="3.5" orient="auto"><path d="M7,0 L7,7 L0,3.5 z" fill="#2980b9"/></marker>
+    <marker id="abl" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#1a86c8"/></marker>
+    <marker id="ao"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#e67e22"/></marker>
     <pattern id="hatch" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)">
       <line x1="0" y1="0" x2="0" y2="7" stroke="#777" stroke-width="0.8"/>
-    </pattern>
-    <pattern id="soil" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
-      <rect width="4" height="8" fill="#c8a96e" opacity="0.4"/>
     </pattern>
   </defs>`;
 
   let s = defs;
 
-  // Ground hatching
-  s += `<rect x="${tx(-B*0.3)}" y="${ty(0)}" width="${tx(B*1.7)-tx(-B*0.3)}" height="14"
-         fill="url(#hatch)" opacity="0.6"/>`;
-  // Ground line
-  s += `<line x1="${tx(-B*0.3)}" y1="${ty(0)}" x2="${tx(B*1.7)}" y2="${ty(0)}"
-         stroke="#666" stroke-width="1.5"/>`;
+  // Ground hatching & line (front side)
+  s += `<rect x="${tx(xMin)}" y="${ty(0)}" width="${tx(0)-tx(xMin)}" height="12" fill="url(#hatch)" opacity="0.6"/>`;
+  s += `<line x1="${tx(xMin)}" y1="${ty(0)}" x2="${tx(xMax)}" y2="${ty(0)}" stroke="#666" stroke-width="1.5"/>`;
 
-  // Backfill area
-  const bfRight = B + B * 0.55;
-  s += `<polygon points="${tx(P[1][0])},${ty(P[1][1])} ${tx(bfRight)},${ty(0)} ${tx(bfRight)},${ty(H)} ${tx(P[2][0])},${ty(P[2][1])}"
-         fill="#d4a96a" opacity="0.35"/>`;
+  // Front water
+  if (d.hwf > 0) {
+    const xw0 = tx(xMin) + 2;
+    s += `<polygon points="${xw0},${ty(0)} ${tx(0)},${ty(0)} ${tx(n1*d.hwf)},${ty(d.hwf)} ${xw0},${ty(d.hwf)}"
+           fill="#aed6f1" opacity="0.55" stroke="#2471a3" stroke-width="0.5"/>`;
+    s += `<line x1="${xw0}" y1="${ty(d.hwf)}" x2="${tx(n1*d.hwf)}" y2="${ty(d.hwf)}" stroke="#2471a3" stroke-width="1.2" stroke-dasharray="4,3"/>`;
+    s += `<text x="${tx(n1*d.hwf) - 4}" y="${ty(d.hwf) - 4}" text-anchor="end" font-size="10" fill="#1a5276">▽ hwf=${d.hwf} m</text>`;
+  }
 
-  // Surcharge arrows
-  if (q > 0) {
-    const arrH = Math.max(0.15 * H, 0.5);
-    for (let xi = P[2][0] + 0.2; xi < bfRight - 0.1; xi += (bfRight - P[2][0]) / 5) {
-      const x1 = tx(xi), y1 = ty(H + arrH), y2 = ty(H + 0.05);
-      s += `<line x1="${x1}" y1="${y1}" x2="${x1}" y2="${y2}" stroke="#e67e22" stroke-width="1.5" marker-end="url(#ar)"/>`;
+  // Backfill polygon (with raised embankment surface)
+  const bfR = xMax - (xMax - xMin) * 0.01;
+  let bfPts = `${tx(d.surf.top[0])},${ty(d.surf.top[1])} ${tx(B)},${ty(0)} ${tx(bfR)},${ty(0)} ${tx(bfR)},${ty(d.surf.ys)}`;
+  if (d.surf.A1) bfPts += ` ${tx(d.surf.A1[0])},${ty(d.surf.A1[1])}`;
+  s += `<polygon points="${bfPts}" fill="#d4a96a" opacity="0.35" stroke="#b08850" stroke-width="0.8"/>`;
+
+  // Back water level (inside backfill)
+  if (d.hwb > 0) {
+    const hb = Math.min(d.hwb, Math.min(H, d.surf.ys));
+    s += `<polygon points="${tx(B - n2*hb)},${ty(hb)} ${tx(B)},${ty(0)} ${tx(bfR)},${ty(0)} ${tx(bfR)},${ty(hb)}"
+           fill="#5dade2" opacity="0.28"/>`;
+    s += `<line x1="${tx(B - n2*Math.min(d.hwb,H))}" y1="${ty(d.hwb)}" x2="${tx(bfR)}" y2="${ty(d.hwb)}" stroke="#2471a3" stroke-width="1.2" stroke-dasharray="4,3"/>`;
+    s += `<text x="${tx(bfR) - 4}" y="${ty(d.hwb) - 4}" text-anchor="end" font-size="10" fill="#1a5276">▽ hwb=${d.hwb} m</text>`;
+  }
+
+  // Critical slip line (trial wedge)
+  if (d.inter) {
+    s += `<line x1="${tx(B)}" y1="${ty(0)}" x2="${tx(d.inter.x)}" y2="${ty(d.inter.y)}"
+           stroke="#c0392b" stroke-width="1.5" stroke-dasharray="6,4"/>`;
+    const mx = tx(B + (d.inter.x - B) * 0.75), my = ty(d.inter.y * 0.75);
+    s += `<text x="${mx + 8}" y="${my + 12}" font-size="10" fill="#922b21">ω=${(d.wCr/RAD).toFixed(1)}°</text>`;
+  }
+
+  // Surcharge arrows (on horizontal surface part)
+  if (d.q > 0) {
+    const arrH = Math.max(0.12 * H, 0.4);
+    const x0q = Math.max(d.surf.xq, xt) + (bfR - d.surf.xq) * 0.06;
+    for (let xi = x0q; xi < bfR - 0.1; xi += Math.max((bfR - x0q) / 5, 0.3)) {
+      s += `<line x1="${tx(xi)}" y1="${ty(d.surf.ys + arrH)}" x2="${tx(xi)}" y2="${ty(d.surf.ys + 0.04)}" stroke="#e67e22" stroke-width="1.5" marker-end="url(#ao)"/>`;
     }
-    const qx = tx((P[2][0] + bfRight) / 2);
-    s += `<text x="${qx}" y="${ty(H + arrH + 0.18)}" text-anchor="middle" font-size="11" fill="#d35400">q = ${q} kN/m²</text>`;
+    s += `<text x="${tx((x0q + bfR) / 2)}" y="${ty(d.surf.ys + arrH + 0.12)}" text-anchor="middle" font-size="11" fill="#d35400">q = ${d.q} kN/m²</text>`;
   }
 
   // Wall polygon
@@ -432,64 +685,87 @@ function drawDiagram(H, B, a, n1, n2, Pa, Pah, Pav, y_Pa, x_Pa, W, xc_W, q, mu, 
   s += `<polygon points="${wp}" fill="url(#hatch)" opacity="0.35"/>`;
 
   // === Force arrows ===
-  // Reference length for arrows (1/4 of B in SVG pixels)
   const refPx = B * sc * 0.4;
+  const wRef  = Math.max(d.W, 1);
 
   // Weight W (green, downward)
-  const wRef = Math.max(W, 1);
-  const wLen = refPx;
-  s += `<line x1="${tx(xc_W)}" y1="${ty(H * 0.65)}" x2="${tx(xc_W)}" y2="${ty(H * 0.65) + wLen}"
+  s += `<line x1="${tx(d.xc)}" y1="${ty(H * 0.6)}" x2="${tx(d.xc)}" y2="${ty(H * 0.6) + refPx}"
          stroke="#27ae60" stroke-width="2" marker-end="url(#ag)"/>`;
-  s += `<text x="${tx(xc_W)}" y="${ty(H * 0.65) - 5}" text-anchor="middle" font-size="11" fill="#1e8449">W = ${W.toFixed(0)} kN/m</text>`;
+  s += `<text x="${tx(d.xc)}" y="${ty(H * 0.6) - 5}" text-anchor="middle" font-size="11" fill="#1e8449">W = ${d.W.toFixed(0)} kN/m</text>`;
 
-  // Pah (red, horizontal, from back face leftward)
-  const pahLen = refPx * (Pah / wRef);
-  const pahX1  = tx(x_Pa) + Math.min(pahLen + 5, B * sc * 0.8);
-  s += `<line x1="${pahX1}" y1="${ty(y_Pa)}" x2="${tx(x_Pa)}" y2="${ty(y_Pa)}"
-         stroke="#c0392b" stroke-width="2.5" marker-end="url(#ar)"/>`;
-  s += `<text x="${pahX1 + 4}" y="${ty(y_Pa) + 4}" font-size="11" fill="#922b21">Pah = ${Pah.toFixed(0)} kN/m</text>`;
-
-  // Pav (orange, downward at heel)
-  if (Pav > 0.1) {
-    const pavLen = refPx * (Pav / wRef);
-    s += `<line x1="${tx(x_Pa)}" y1="${ty(y_Pa + 0.05)}" x2="${tx(x_Pa)}" y2="${ty(y_Pa + 0.05) + pavLen}"
-           stroke="#e67e22" stroke-width="2" marker-end="url(#ar)"/>`;
-    s += `<text x="${tx(x_Pa) + 4}" y="${ty(y_Pa + 0.05) + pavLen / 2 + 4}" font-size="10" fill="#d35400">Pav</text>`;
+  // Pah (red, horizontal, toward wall from back)
+  if (d.Pah > 0.01) {
+    const pahLen = Math.min(refPx * (d.Pah / wRef) + 14, B * sc * 0.9);
+    const px1 = tx(d.x_Pa) + pahLen;
+    s += `<line x1="${px1}" y1="${ty(d.y_Pa)}" x2="${tx(d.x_Pa)}" y2="${ty(d.y_Pa)}"
+           stroke="#c0392b" stroke-width="2.5" marker-end="url(#ar)"/>`;
+    s += `<text x="${px1 + 4}" y="${ty(d.y_Pa) + 4}" font-size="11" fill="#922b21">Pah = ${d.Pah.toFixed(0)} kN/m</text>`;
   }
 
-  // Base reaction (upward, trapezoid pressure diagram)
-  const q_max = (sumV / B) * (1 + 6 * (B / 2 - (sumMrForDiagram(W, xc_W, Pav, x_Pa, Pah, y_Pa) / sumV)) / B);
-  const q_min_v = Math.max(0, (sumV / B) * (1 - 6 * (B / 2 - (sumMrForDiagram(W, xc_W, Pav, x_Pa, Pah, y_Pa) / sumV)) / B));
-  const qscale = refPx / Math.max(q_max, 1) * 0.6;
-  const qy = ty(-0.12);
-  // Draw pressure trapezoid below base
-  s += `<polygon points="${tx(0)},${qy} ${tx(B)},${qy} ${tx(B)},${qy + q_min_v * qscale} ${tx(0)},${qy + q_max * qscale}"
+  // Pav (orange, downward)
+  if (d.Pav > 0.1) {
+    const pavLen = Math.max(refPx * (d.Pav / wRef), 12);
+    s += `<line x1="${tx(d.x_Pa)}" y1="${ty(d.y_Pa + 0.04)}" x2="${tx(d.x_Pa)}" y2="${ty(d.y_Pa + 0.04) + pavLen}"
+           stroke="#e67e22" stroke-width="2" marker-end="url(#ao)"/>`;
+    s += `<text x="${tx(d.x_Pa) + 4}" y="${ty(d.y_Pa + 0.04) + pavLen / 2 + 4}" font-size="10" fill="#d35400">Pav</text>`;
+  }
+
+  // Back water pressure arrow (blue, toward wall from back)
+  if (d.wb.Ph > 0.01) {
+    const len = Math.min(refPx * (d.wb.Ph / wRef) + 12, B * sc * 0.8);
+    const xw = B - n2 * d.wb.y;
+    s += `<line x1="${tx(xw) + len}" y1="${ty(d.wb.y)}" x2="${tx(xw)}" y2="${ty(d.wb.y)}"
+           stroke="#1a86c8" stroke-width="2" marker-end="url(#abl)"/>`;
+    s += `<text x="${tx(xw) + len + 4}" y="${ty(d.wb.y) + 4}" font-size="10" fill="#1a5276">Pwbh = ${d.wb.Ph.toFixed(0)}</text>`;
+  }
+
+  // Front water pressure arrow (blue, toward wall from front)
+  if (d.wf.Ph > 0.01) {
+    const len = Math.min(refPx * (d.wf.Ph / wRef) + 12, B * sc * 0.6);
+    const xw = n1 * d.wf.y;
+    s += `<line x1="${tx(xw) - len}" y1="${ty(d.wf.y)}" x2="${tx(xw)}" y2="${ty(d.wf.y)}"
+           stroke="#1a86c8" stroke-width="2" marker-end="url(#abl)"/>`;
+    s += `<text x="${tx(xw) - len - 3}" y="${ty(d.wf.y) + 4}" text-anchor="end" font-size="10" fill="#1a5276">Pwfh = ${d.wf.Ph.toFixed(0)}</text>`;
+  }
+
+  // Base reaction (trapezoid below base) & uplift
+  const qy0 = ty(0) + 14;
+  const qsc = 26 / Math.max(d.q_max, d.uToe, d.uHeel, 1);
+  const qminv = Math.max(d.q_min, 0);
+  s += `<polygon points="${tx(0)},${qy0} ${tx(B)},${qy0} ${tx(B)},${qy0 + qminv * qsc} ${tx(0)},${qy0 + d.q_max * qsc}"
          fill="#3498db" opacity="0.25" stroke="#2980b9" stroke-width="1"/>`;
-  s += `<text x="${tx(0)}" y="${qy + q_max * qscale + 12}" font-size="10" fill="#1a5276">${q_max.toFixed(0)}</text>`;
-  s += `<text x="${tx(B)}" y="${qy + q_min_v * qscale + 12}" font-size="10" fill="#1a5276" text-anchor="end">${q_min_v.toFixed(0)}</text>`;
-  s += `<text x="${tx(B/2)}" y="${qy + (q_max+q_min_v)/2*qscale + 12}" font-size="10" fill="#1a5276" text-anchor="middle">kN/m²</text>`;
+  s += `<text x="${tx(0) - 3}" y="${qy0 + d.q_max * qsc + 11}" font-size="10" fill="#1a5276">${d.q_max.toFixed(0)}</text>`;
+  s += `<text x="${tx(B) + 3}" y="${qy0 + qminv * qsc + 11}" font-size="10" fill="#1a5276">${qminv.toFixed(0)} kN/m²</text>`;
+  if (d.U > 0.01) {
+    s += `<polyline points="${tx(0)},${qy0 + d.uToe * qsc} ${tx(0)},${qy0} ${tx(B)},${qy0} ${tx(B)},${qy0 + d.uHeel * qsc} ${tx(0)},${qy0 + d.uToe * qsc}"
+           fill="none" stroke="#7d3c98" stroke-width="1.3" stroke-dasharray="5,3"/>`;
+    s += `<text x="${tx(B) + 42}" y="${qy0 + 16}" font-size="10" fill="#7d3c98">揚圧力 U = ${d.U.toFixed(0)} kN/m（上向き）</text>`;
+  }
 
   // === Dimension lines ===
-  // H (left side)
-  const dimX = tx(-B * 0.18);
+  const dimX = tx(-B * 0.42);
   s += `<line x1="${dimX}" y1="${ty(0)}" x2="${dimX}" y2="${ty(H)}" stroke="#2980b9" stroke-width="1" marker-end="url(#ab)" marker-start="url(#ab2)"/>`;
   s += `<text x="${dimX - 5}" y="${ty(H / 2)}" font-size="11" fill="#1a5276" text-anchor="middle" transform="rotate(-90,${dimX - 5},${ty(H / 2)})">H = ${H} m</text>`;
 
-  // B (bottom)
-  const dimY = ty(-0.55);
+  const dimY = ty(0) + 56;
   s += `<line x1="${tx(0)}" y1="${dimY}" x2="${tx(B)}" y2="${dimY}" stroke="#2980b9" stroke-width="1" marker-end="url(#ab)" marker-start="url(#ab2)"/>`;
   s += `<text x="${tx(B / 2)}" y="${dimY - 4}" font-size="11" fill="#1a5276" text-anchor="middle">B = ${B} m</text>`;
 
+  // Δh dimension (raised embankment)
+  // dh>0: at the right edge / dh<0: above the descending slope (clear of q arrows)
+  if (Math.abs(d.dh) > 0.005) {
+    const xd = d.dh > 0 ? tx(bfR) - 16 : tx((d.surf.top[0] + d.surf.xq) / 2);
+    s += `<line x1="${xd - 8}" y1="${ty(H)}" x2="${xd + 8}" y2="${ty(H)}" stroke="#b0632f" stroke-width="0.8" stroke-dasharray="3,2"/>`;
+    s += `<line x1="${xd - 8}" y1="${ty(d.surf.ys)}" x2="${xd + 8}" y2="${ty(d.surf.ys)}" stroke="#b0632f" stroke-width="0.8" stroke-dasharray="3,2"/>`;
+    s += `<line x1="${xd}" y1="${ty(H)}" x2="${xd}" y2="${ty(d.surf.ys)}" stroke="#b0632f" stroke-width="1" marker-end="url(#ao)"/>`;
+    s += `<text x="${xd - 10}" y="${(ty(H) + ty(d.surf.ys)) / 2 + 4}" text-anchor="end" font-size="10" fill="#b0632f">Δh = ${d.dh} m</text>`;
+  }
+
   // Labels
-  s += `<text x="${tx((n1*H + B)/2 - 0.1)}" y="${ty(H * 0.45)}" text-anchor="middle" font-size="12" fill="#37474f" font-weight="bold">重力式</text>`;
-  s += `<text x="${tx((P[2][0] + bfRight)/2)}" y="${ty(H * 0.5)}" text-anchor="middle" font-size="11" fill="#7d6608" opacity="0.9">裏込め土</text>`;
+  s += `<text x="${tx((n1*H + B) / 2 - 0.1)}" y="${ty(H * 0.45)}" text-anchor="middle" font-size="12" fill="#37474f" font-weight="bold">重力式</text>`;
+  s += `<text x="${tx(bfR) - 6}" y="${ty(Math.min(H, d.surf.ys) * 0.1) - 3}" text-anchor="end" font-size="11" fill="#7d6608" opacity="0.9">裏込め土</text>`;
 
   svg.innerHTML = s;
-}
-
-// Helper for diagram (avoids re-declaring sumMr variable in outer scope)
-function sumMrForDiagram(W, xc_W, Pav, x_Pa, Pah, y_Pa) {
-  return W * xc_W + Pav * x_Pa;
 }
 
 // Auto-calculate on load
