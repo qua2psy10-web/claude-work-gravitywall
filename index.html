@@ -391,15 +391,19 @@ function calculate() {
   const ok_OT = Fs_OT >= 1.5;
 
   // --- Sliding ---
-  const Fs_SL = sumH > 1e-9 ? mu * sumV / sumH : 999;
+  const Fs_SL = Math.abs(sumH) > 1e-9 ? mu * sumV / Math.abs(sumH) : 999;
   const ok_SL = Fs_SL >= 1.5;
 
   // --- Bearing capacity ---
   const x_R   = sumV > 1e-9 ? (sumMr - sumMo) / sumV : B / 2;
   const e     = B / 2 - x_R;
   const e_max = B / 6;
-  const q_max = sumV > 0 ? (sumV / B) * (1 + 6 * e / B) : 0;
-  const q_min = sumV > 0 ? (sumV / B) * (1 - 6 * e / B) : 0;
+  const q_toe  = sumV > 0 ? (sumV / B) * (1 + 6 * e / B) : 0;   // 壁趾側（x=0）
+  const q_heel = sumV > 0 ? (sumV / B) * (1 - 6 * e / B) : 0;   // 壁踵側（x=B）
+  const q_max  = Math.max(q_toe, q_heel);
+  const q_min  = Math.min(q_toe, q_heel);
+  const qMaxSide = q_toe >= q_heel ? '壁趾側' : '壁踵側';
+  const qMinSide = q_toe >= q_heel ? '壁踵側' : '壁趾側';
   const ok_e  = Math.abs(e) <= e_max;
   const ok_q  = q_max <= qa;
   const ok_V  = sumV > 0;
@@ -408,7 +412,7 @@ function calculate() {
   // ===== RENDER =====
   drawDiagram({ H, B, a, n1, n2, xt, surf, dh, hwf, hwb, q, W, xc: xc_wall,
                 Pah, Pav, y_Pa, x_Pa, wb, wf, U, uToe, uHeel, useUplift,
-                wCr: ep.wCr, inter: ep.inter, q_max, q_min });
+                wCr: ep.wCr, inter: ep.inter, q_toe, q_heel });
 
   document.getElementById('no-result').classList.add('hidden');
   document.getElementById('results').classList.remove('hidden');
@@ -461,12 +465,12 @@ function calculate() {
         <td><span class="badge ${ok_e ? 'pass' : 'fail'}">${ok_e ? 'OK' : 'NG'}</span> ≤ B/6 = ${f(e_max)} m</td>
       </tr>
       <tr class="${ok_q ? '' : 'hl'}">
-        <td>最大地盤反力 qmax（壁趾側）</td>
+        <td>最大地盤反力 qmax（${qMaxSide}）</td>
         <td class="r">${f(q_max, 1)}</td><td>kN/m²</td>
         <td><span class="badge ${ok_q ? 'pass' : 'fail'}">${ok_q ? 'OK' : 'NG'}</span> ≤ qa = ${qa} kN/m²</td>
       </tr>
       <tr>
-        <td>最小地盤反力 qmin（壁踵側）</td>
+        <td>最小地盤反力 qmin（${qMinSide}）</td>
         <td class="r">${f(q_min, 1)}</td><td>kN/m²</td>
         <td><span class="badge ${q_min >= 0 ? 'pass' : 'fail'}">${q_min >= 0 ? 'OK' : 'NG'}</span> ≥ 0</td>
       </tr>
@@ -728,14 +732,16 @@ function drawDiagram(d) {
     s += `<text x="${tx(xw) - len - 3}" y="${ty(d.wf.y) + 4}" text-anchor="end" font-size="10" fill="#1a5276">Pwfh = ${d.wf.Ph.toFixed(0)}</text>`;
   }
 
-  // Base reaction (trapezoid below base) & uplift
+  // Base reaction (trapezoid below base) & uplift — drawn at their actual
+  // location (toe x=0 / heel x=B), since the larger value can occur at either end.
   const qy0 = ty(0) + 14;
-  const qsc = 26 / Math.max(d.q_max, d.uToe, d.uHeel, 1);
-  const qminv = Math.max(d.q_min, 0);
-  s += `<polygon points="${tx(0)},${qy0} ${tx(B)},${qy0} ${tx(B)},${qy0 + qminv * qsc} ${tx(0)},${qy0 + d.q_max * qsc}"
+  const qToeV  = Math.max(d.q_toe, 0);
+  const qHeelV = Math.max(d.q_heel, 0);
+  const qsc = 26 / Math.max(qToeV, qHeelV, d.uToe, d.uHeel, 1);
+  s += `<polygon points="${tx(0)},${qy0} ${tx(B)},${qy0} ${tx(B)},${qy0 + qHeelV * qsc} ${tx(0)},${qy0 + qToeV * qsc}"
          fill="#3498db" opacity="0.25" stroke="#2980b9" stroke-width="1"/>`;
-  s += `<text x="${tx(0) - 3}" y="${qy0 + d.q_max * qsc + 11}" font-size="10" fill="#1a5276">${d.q_max.toFixed(0)}</text>`;
-  s += `<text x="${tx(B) + 3}" y="${qy0 + qminv * qsc + 11}" font-size="10" fill="#1a5276">${qminv.toFixed(0)} kN/m²</text>`;
+  s += `<text x="${tx(0) - 3}" y="${qy0 + qToeV * qsc + 11}" font-size="10" fill="#1a5276">${qToeV.toFixed(0)}</text>`;
+  s += `<text x="${tx(B) + 3}" y="${qy0 + qHeelV * qsc + 11}" font-size="10" fill="#1a5276">${qHeelV.toFixed(0)} kN/m²</text>`;
   if (d.U > 0.01) {
     s += `<polyline points="${tx(0)},${qy0 + d.uToe * qsc} ${tx(0)},${qy0} ${tx(B)},${qy0} ${tx(B)},${qy0 + d.uHeel * qsc} ${tx(0)},${qy0 + d.uToe * qsc}"
            fill="none" stroke="#7d3c98" stroke-width="1.3" stroke-dasharray="5,3"/>`;
