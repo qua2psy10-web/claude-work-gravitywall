@@ -384,7 +384,7 @@ function calculate() {
   const sumMr = Mr_W + Mr_Pav + Mr_Vwb + Mr_Vwf + Mr_Pwf;
   const sumMo = Mo_Pah + Mo_Pwb + Mo_U;
   const sumV  = W + Pav + wb.V + wf.V - U;
-  const sumH  = Math.max(Pah + wb.Ph - wf.Ph, 0);
+  const sumH  = Pah + wb.Ph - wf.Ph;
 
   // --- Overturning ---
   const Fs_OT = sumMo > 1e-9 ? sumMr / sumMo : 999;
