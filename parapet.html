@@ -362,7 +362,8 @@ function checkStability(B, mu, qa, W, xc, zc, Pwh, y_Pw, Pwv, x_Pwv, U, xu, Pah,
   const qa_lim = isRelaxed ? qa * 1.5 : qa;
   const ok_e   = Math.abs(e) <= e_lim;
   const ok_q   = q_max <= qa_lim;
-  const ok_BC  = ok_e && ok_q;
+  const ok_V   = sumV > 0;
+  const ok_BC  = ok_q && ok_V;   // 支持力の合否は qmax ≤ qa のみで判定（偏心量は別照査）
 
   return { Fs_OT, req_OT, ok_OT, Fs_SL, req_SL, ok_SL, e, e_lim, q_max, q_min, qa_lim, ok_BC, ok_e, ok_q,
            sumMr, sumMo, sumV, sumH, Mr_W, Mr_Pav, Mr_Pah, Mo_Pw, Mo_Pwv, Mo_U, Mo_Feq, x_R_from_heel };
@@ -403,7 +404,8 @@ function checkStabilityCollision(B, mu, qa, W, xc, Pwh, y_Pw, Pwv, x_Pwv, U, xu,
   const qa_lim  = qa * 1.5;
   const ok_e    = Math.abs(e) <= e_lim;
   const ok_q    = q_max <= qa_lim;
-  const ok_BC   = ok_e && ok_q;
+  const ok_V    = sumV > 0;
+  const ok_BC   = ok_q && ok_V;   // 支持力の合否は qmax ≤ qa のみで判定（偏心量は別照査）
 
   return { Fs_OT, req_OT, ok_OT, Fs_SL, req_SL, ok_SL, e, e_lim, q_max, q_min, qa_lim, ok_BC, ok_e, ok_q,
            sumMr, sumMo, sumV, sumH, x_R_from_heel: B - x_R_from_toe };
