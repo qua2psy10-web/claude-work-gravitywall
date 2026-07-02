@@ -6,41 +6,41 @@
   <title>河川特殊堤パラペット 安定計算</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Noto Sans JP', 'Meiryo', sans-serif; background: #eef2f7; color: #333; font-size: 14px; }
+    body { font-family: 'Noto Sans JP', 'Meiryo', sans-serif; background: #eef2f7; color: #333; font-size: 17px; }
 
     header { background: #1a4a6c; color: white; padding: 14px 24px; display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
-    header h1 { font-size: 18px; font-weight: bold; }
-    header p  { font-size: 12px; color: #9bc; }
-    header .nav-link { margin-left: auto; font-size: 12px; }
+    header h1 { font-size: 22px; font-weight: bold; }
+    header p  { font-size: 14px; color: #9bc; }
+    header .nav-link { margin-left: auto; font-size: 14px; }
     header .nav-link a { color: #9bc; text-decoration: none; border: 1px solid #9bc; border-radius: 4px; padding: 3px 10px; }
     header .nav-link a:hover { background: rgba(255,255,255,0.15); }
 
-    .container { max-width: 1320px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: 380px 1fr; gap: 16px; }
+    .container { max-width: 1320px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: 420px 1fr; gap: 16px; }
 
     .card { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.12); margin-bottom: 12px; }
     .card:last-child { margin-bottom: 0; }
-    .card h2 { font-size: 13px; font-weight: bold; color: #1a4a6c; border-bottom: 2px solid #1a4a6c; padding-bottom: 5px; margin-bottom: 12px; letter-spacing: 0.5px; }
+    .card h2 { font-size: 16px; font-weight: bold; color: #1a4a6c; border-bottom: 2px solid #1a4a6c; padding-bottom: 5px; margin-bottom: 12px; letter-spacing: 0.5px; }
 
-    .sec-label { font-size: 11px; font-weight: bold; color: #7a8fa8; text-transform: uppercase; letter-spacing: 0.8px; margin: 12px 0 6px; }
+    .sec-label { font-size: 13px; font-weight: bold; color: #7a8fa8; text-transform: uppercase; letter-spacing: 0.8px; margin: 12px 0 6px; }
     .sec-label:first-of-type { margin-top: 0; }
 
     .fg { display: flex; align-items: center; margin-bottom: 7px; gap: 6px; }
-    .fg label { width: 160px; font-size: 12px; flex-shrink: 0; color: #444; }
-    .fg input[type=number] { width: 76px; padding: 4px 7px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; text-align: right; transition: border-color 0.2s; }
+    .fg label { width: 188px; font-size: 14px; flex-shrink: 0; color: #444; }
+    .fg input[type=number] { width: 90px; padding: 5px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; text-align: right; transition: border-color 0.2s; }
     .fg input[type=number]:focus { outline: none; border-color: #1a4a6c; }
-    .fg input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
-    .fg .unit { width: 52px; font-size: 11px; color: #888; }
-    .fg .note { font-size: 11px; color: #aaa; }
-    .fg-check { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; font-size: 12px; color: #444; cursor: pointer; }
+    .fg input[type=checkbox] { width: 18px; height: 18px; cursor: pointer; }
+    .fg .unit { width: 60px; font-size: 13px; color: #888; }
+    .fg .note { font-size: 13px; color: #aaa; }
+    .fg-check { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; font-size: 14px; color: #444; cursor: pointer; }
     .fg-check input { cursor: pointer; }
     .sub-inputs { padding-left: 12px; border-left: 3px solid #e0e8f0; margin-bottom: 4px; }
 
-    .btn { width: 100%; padding: 11px; background: #1a4a6c; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; margin-top: 14px; letter-spacing: 1px; transition: background 0.2s; }
+    .btn { width: 100%; padding: 12px; background: #1a4a6c; color: white; border: none; border-radius: 6px; font-size: 17px; font-weight: bold; cursor: pointer; margin-top: 14px; letter-spacing: 1px; transition: background 0.2s; }
     .btn:hover { background: #2a6090; }
 
     .result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
     .case-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px; }
-    .case-label { font-size: 13px; font-weight: bold; color: #555; margin-bottom: 8px; padding: 5px 10px; border-radius: 4px; }
+    .case-label { font-size: 16px; font-weight: bold; color: #555; margin-bottom: 8px; padding: 5px 10px; border-radius: 4px; }
     .case-label.normal   { background: #e8f4fd; color: #1a4a6c; }
     .case-label.seismic  { background: #fef9e7; color: #7d6608; }
     .case-label.collision{ background: #f5eef8; color: #6c3483; }
@@ -48,17 +48,17 @@
     .stab-card { border-radius: 7px; padding: 10px 12px; border-left: 5px solid #ccc; background: #fafafa; }
     .stab-card.pass { border-left-color: #2ecc71; background: #f0fff4; }
     .stab-card.fail { border-left-color: #e74c3c; background: #fff5f5; }
-    .stab-card .stab-title { font-size: 11px; font-weight: bold; color: #555; margin-bottom: 4px; }
-    .stab-card .stab-fs   { font-size: 22px; font-weight: bold; line-height: 1; }
+    .stab-card .stab-title { font-size: 13px; font-weight: bold; color: #555; margin-bottom: 4px; }
+    .stab-card .stab-fs   { font-size: 26px; font-weight: bold; line-height: 1; }
     .stab-card.pass .stab-fs { color: #27ae60; }
     .stab-card.fail .stab-fs { color: #c0392b; }
-    .stab-card .stab-req  { font-size: 10px; color: #888; margin-top: 2px; }
-    .stab-card .stab-detail { font-size: 11px; color: #666; margin-top: 5px; line-height: 1.5; }
-    .badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: bold; margin-top: 5px; }
+    .stab-card .stab-req  { font-size: 12px; color: #888; margin-top: 2px; }
+    .stab-card .stab-detail { font-size: 13px; color: #666; margin-top: 5px; line-height: 1.5; }
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 13px; font-weight: bold; margin-top: 5px; }
     .badge.pass { background: #d4edda; color: #155724; }
     .badge.fail { background: #f8d7da; color: #721c24; }
 
-    table.rt { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.rt { width: 100%; border-collapse: collapse; font-size: 14px; }
     table.rt th { background: #f0f4f8; padding: 5px 8px; text-align: left; border: 1px solid #e0e5ea; color: #555; font-weight: normal; }
     table.rt td { padding: 5px 8px; border: 1px solid #e0e5ea; }
     table.rt td.r { text-align: right; font-family: 'Courier New', monospace; }
@@ -66,13 +66,13 @@
     table.rt tr.hl2 { background: #ebf5fb; }
 
     #diagram-wrap { background: #f4f7fb; border-radius: 6px; padding: 8px; }
-    #no-result { color: #aaa; text-align: center; padding: 40px 0; font-size: 13px; }
+    #no-result { color: #aaa; text-align: center; padding: 40px 0; font-size: 16px; }
     .hidden { display: none; }
 
-    .formula-note { background: #f0f4f8; border-radius: 5px; padding: 9px 12px; font-size: 11px; color: #666; line-height: 1.7; margin-top: 10px; }
-    .section-title { font-size: 13px; font-weight: bold; color: #1a4a6c; margin: 14px 0 8px; border-bottom: 1px solid #dde4ea; padding-bottom: 4px; }
+    .formula-note { background: #f0f4f8; border-radius: 5px; padding: 9px 12px; font-size: 13px; color: #666; line-height: 1.7; margin-top: 10px; }
+    .section-title { font-size: 16px; font-weight: bold; color: #1a4a6c; margin: 14px 0 8px; border-bottom: 1px solid #dde4ea; padding-bottom: 4px; }
 
-    .btn-print { width: 100%; padding: 9px; background: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; margin-top: 10px; letter-spacing: 0.5px; transition: background 0.2s; }
+    .btn-print { width: 100%; padding: 9px; background: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; letter-spacing: 0.5px; transition: background 0.2s; }
     .btn-print:hover { background: #388e3c; }
 
     /* ===== PRINT STYLES ===== */
@@ -177,7 +177,7 @@
       <div id="col_inputs" class="sub-inputs" style="display:none">
         <div class="fg"><label>衝突力 P_col</label><input id="p_col" type="number" value="100" min="0" step="10"><span class="unit">kN/m</span></div>
         <div class="fg"><label>作用高 y_col</label><input id="y_col" type="number" value="1.0" min="0" step="0.1"><span class="unit">m</span><span class="note">底面より</span></div>
-        <div style="font-size:11px;color:#888;margin-top:2px">常時水圧と同時作用（偶発荷重）<br>安全率：転倒≥1.1，滑動≥1.0，e≤B/4</div>
+        <div style="font-size:13px;color:#888;margin-top:2px">常時水圧と同時作用（偶発荷重）<br>安全率：転倒≥1.1，滑動≥1.0，e≤B/4</div>
       </div>
 
       <button class="btn" onclick="calculate()">計　算　実　行</button>
@@ -185,12 +185,12 @@
 
     <div class="card">
       <h2>計算書情報</h2>
-      <div class="fg"><label>工事名</label><input id="pi_project" type="text" style="width:180px;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px" placeholder="〇〇河川改修工事"></div>
-      <div class="fg"><label>箇所名</label><input id="pi_location" type="text" style="width:180px;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px" placeholder="第〇号特殊堤 STA.〇+〇〇〇"></div>
-      <div class="fg"><label>図　番</label><input id="pi_drawno"   type="text" style="width:120px;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px" placeholder="構-〇〇〇"></div>
-      <div class="fg"><label>設計者</label><input id="pi_designer" type="text" style="width:100px;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px"></div>
-      <div class="fg"><label>確認者</label><input id="pi_checker"  type="text" style="width:100px;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px"></div>
-      <div class="fg"><label>作成日</label><input id="pi_date"     type="date"  style="width:140px;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px"></div>
+      <div class="fg"><label>工事名</label><input id="pi_project" type="text" style="width:210px;padding:4px 7px;border:1px solid #ccc;border-radius:4px;font-size:14px" placeholder="〇〇河川改修工事"></div>
+      <div class="fg"><label>箇所名</label><input id="pi_location" type="text" style="width:210px;padding:4px 7px;border:1px solid #ccc;border-radius:4px;font-size:14px" placeholder="第〇号特殊堤 STA.〇+〇〇〇"></div>
+      <div class="fg"><label>図　番</label><input id="pi_drawno"   type="text" style="width:140px;padding:4px 7px;border:1px solid #ccc;border-radius:4px;font-size:14px" placeholder="構-〇〇〇"></div>
+      <div class="fg"><label>設計者</label><input id="pi_designer" type="text" style="width:118px;padding:4px 7px;border:1px solid #ccc;border-radius:4px;font-size:14px"></div>
+      <div class="fg"><label>確認者</label><input id="pi_checker"  type="text" style="width:118px;padding:4px 7px;border:1px solid #ccc;border-radius:4px;font-size:14px"></div>
+      <div class="fg"><label>作成日</label><input id="pi_date"     type="date"  style="width:165px;padding:4px 7px;border:1px solid #ccc;border-radius:4px;font-size:14px"></div>
       <button class="btn-print" onclick="printReport()">📄　計算書 PDF 出力</button>
     </div>
   </div>
@@ -428,7 +428,7 @@ function stabCards(res, isSeismic) {
     </div>
     <div class="stab-card ${res.ok_BC ? 'pass' : 'fail'}">
       <div class="stab-title">支持力</div>
-      <div class="stab-fs" style="font-size:17px">${f(res.q_max, 1)} kN/m²</div>
+      <div class="stab-fs" style="font-size:20px">${f(res.q_max, 1)} kN/m²</div>
       <div class="stab-req">許容 qa${isSeismic ? '×1.5' : ''} = ${res.qa_lim.toFixed(0)} kN/m²</div>
       <div class="stab-detail">qmin = ${f(res.q_min, 1)} kN/m²<br>e = ${f(Math.abs(res.e))} m (≤${f(res.e_lim)} m)</div>
       <span class="badge ${res.ok_BC ? 'pass' : 'fail'}">${res.ok_BC ? 'OK' : 'NG'}</span>
@@ -553,7 +553,7 @@ function calculate() {
   // Forces table (常時)
   const U1 = ul1.U;
   document.getElementById('forces-table').innerHTML = `
-    <p style="font-size:11px;color:#888;margin-bottom:6px">常時（計画高水位 hw = ${hw} m）の集計。川裏趾（x=B）まわり。</p>
+    <p style="font-size:13px;color:#888;margin-bottom:6px">常時（計画高水位 hw = ${hw} m）の集計。川裏趾（x=B）まわり。</p>
     <table class="rt">
       <tr>
         <th>項目</th>
