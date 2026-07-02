@@ -407,7 +407,7 @@ function calculate() {
   const ok_e  = Math.abs(e) <= e_max;
   const ok_q  = q_max <= qa;
   const ok_V  = sumV > 0;
-  const ok_BC = ok_e && ok_q && ok_V;
+  const ok_BC = ok_q && ok_V;   // 支持力の合否は qmax ≤ qa のみで判定（偏心量は別照査）
 
   // ===== RENDER =====
   drawDiagram({ H, B, a, n1, n2, xt, surf, dh, hwf, hwb, q, W, xc: xc_wall,
